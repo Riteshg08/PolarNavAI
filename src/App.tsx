@@ -115,77 +115,75 @@ export const App: React.FC = () => {
           showIcebergs={showIcebergs}
           showHeatmap={showHeatmap}
           showVectors={showVectors}
+          originStationId={params.originStationId}
+          destinationStationId={params.destinationStationId}
         />
       </div>
 
       {/* Telemetry Footer Bar */}
-      <footer className="telemetry-bar">
-        <div className="telemetry-group">
-          <div className="telemetry-item">
-            <span className="telemetry-label">Active Expedition Track</span>
-            <div className="telemetry-val cyan">
-              <Anchor size={14} />
-              {originStation.name.split(' ')[0]} → {destStation.name.split(' ')[0]}
-            </div>
-          </div>
-
-          <div className="telemetry-item">
-            <span className="telemetry-label">Vessel & Ice Class</span>
-            <div className="telemetry-val">
-              {activeVessel.name} [{activeVessel.polarClass}]
-            </div>
-          </div>
-
-          <div className="telemetry-item">
-            <span className="telemetry-label">Total Distance</span>
-            <div className="telemetry-val">{activeRoute.totalDistanceNmi} Nmi</div>
-          </div>
-
-          <div className="telemetry-item">
-            <span className="telemetry-label">Est. Voyage Time</span>
-            <div className="telemetry-val">
-              <Clock size={14} />
-              {activeRoute.totalTimeHours} hrs ({(activeRoute.totalTimeHours / 24).toFixed(1)} days)
-            </div>
+      <footer className="telemetry-bar" style={{ display: 'flex', flexWrap: 'wrap', gap: '24px', padding: '12px 24px', justifyContent: 'flex-start' }}>
+        <div className="telemetry-item">
+          <span className="telemetry-label">Active Expedition Track</span>
+          <div className="telemetry-val cyan">
+            <Anchor size={14} />
+            {originStation.name.split(' ')[0]} → {destStation.name.split(' ')[0]}
           </div>
         </div>
 
-        <div className="telemetry-group">
-          <div className="telemetry-item">
-            <span className="telemetry-label">Est. Fuel Burn</span>
-            <div className="telemetry-val green">
-              <Fuel size={14} />
-              {activeRoute.fuelConsumedTons} Tons MGO
-            </div>
+        <div className="telemetry-item">
+          <span className="telemetry-label">Vessel & Ice Class</span>
+          <div className="telemetry-val">
+            {activeVessel.name} [{activeVessel.polarClass}]
           </div>
+        </div>
 
-          <div className="telemetry-item">
-            <span className="telemetry-label">CO2 Reduction</span>
-            <div className="telemetry-val green">
-              <Leaf size={14} />
-              {activeRoute.co2SavedTons} Tons CO2 Saved
-            </div>
+        <div className="telemetry-item">
+          <span className="telemetry-label">Total Distance</span>
+          <div className="telemetry-val">{activeRoute.totalDistanceNmi} Nmi</div>
+        </div>
+
+        <div className="telemetry-item">
+          <span className="telemetry-label">Est. Voyage Time</span>
+          <div className="telemetry-val">
+            <Clock size={14} />
+            {activeRoute.totalTimeHours} hrs ({(activeRoute.totalTimeHours / 24).toFixed(1)} days)
           </div>
+        </div>
 
-          <div className="telemetry-item">
-            <span className="telemetry-label">Besetment Safety Index</span>
-            <div className="telemetry-val cyan">
-              <ShieldCheck size={16} />
-              {activeRoute.safetyScore.total} / 100
-            </div>
-            <div style={{ fontSize: '0.65rem', color: '#8b9bb4', marginTop: '4px' }}>
-              Ice: {activeRoute.safetyScore.seaIceRisk} | Berg: {activeRoute.safetyScore.icebergRisk} | Wx: {activeRoute.safetyScore.weatherRisk} | Ship: {activeRoute.safetyScore.vesselRisk}
-            </div>
+        <div className="telemetry-item">
+          <span className="telemetry-label">Est. Fuel Burn</span>
+          <div className="telemetry-val green">
+            <Fuel size={14} />
+            {activeRoute.fuelConsumedTons} Tons MGO
           </div>
+        </div>
 
-          <div className="telemetry-item">
-            <span className="telemetry-label">Forecast Confidence</span>
-            <div className="telemetry-val" style={{ color: activeRoute.safetyScore.overallConfidencePct > 80 ? '#38ef7d' : '#ffb703' }}>
-              {activeRoute.safetyScore.overallConfidencePct}%
-            </div>
-            <div style={{ fontSize: '0.65rem', color: '#8b9bb4', marginTop: '4px', fontStyle: 'italic' }}>
-              Based on temporal trajectory uncertainty
-            </div>
+        <div className="telemetry-item">
+          <span className="telemetry-label">CO2 Reduction</span>
+          <div className="telemetry-val green">
+            <Leaf size={14} />
+            {activeRoute.co2SavedTons} Tons CO2 Saved
+          </div>
+        </div>
+
+        <div className="telemetry-item">
+          <span className="telemetry-label">Besetment Safety Index</span>
+          <div className="telemetry-val cyan">
+            <ShieldCheck size={16} />
+            {activeRoute.safetyScore.total} / 100
+          </div>
+          <div style={{ fontSize: '0.65rem', color: '#8b9bb4', marginTop: '4px', whiteSpace: 'nowrap' }}>
+            Ice: {activeRoute.safetyScore.seaIceRisk} | Berg: {activeRoute.safetyScore.icebergRisk} | Wx: {activeRoute.safetyScore.weatherRisk} | Ship: {activeRoute.safetyScore.vesselRisk}
+          </div>
+        </div>
+
+        <div className="telemetry-item">
+          <span className="telemetry-label">Forecast Confidence</span>
+          <div className="telemetry-val" style={{ color: activeRoute.safetyScore.overallConfidencePct > 80 ? '#38ef7d' : '#ffb703' }}>
+            {activeRoute.safetyScore.overallConfidencePct}%
+          </div>
+          <div style={{ fontSize: '0.65rem', color: '#8b9bb4', marginTop: '4px', fontStyle: 'italic', whiteSpace: 'nowrap' }}>
+            Based on temporal trajectory uncertainty
           </div>
         </div>
       </footer>

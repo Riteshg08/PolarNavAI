@@ -6,7 +6,7 @@ export const CLEARANCE_WARNING_MIN_NMI = 5;
 
 // Interpolate iceberg position for a given day fractional value
 function getInterpolatedIcebergPos(iceberg: Iceberg, dayFloat: number): { lat: number; lon: number } {
-  const trajectory = iceberg.predictedTrajectory || iceberg.trajectory7Day;
+  const trajectory = iceberg.trajectory;
   if (!trajectory || trajectory.length === 0) return { lat: iceberg.lat, lon: iceberg.lon };
 
   if (dayFloat <= 0) return { lat: trajectory[0].lat, lon: trajectory[0].lon };

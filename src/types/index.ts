@@ -23,8 +23,7 @@ export interface Iceberg {
   driftSpeedKnots: number;
   driftHeadingDeg: number;
   hazardLevel: 'CRITICAL' | 'HIGH' | 'MODERATE' | 'LOW';
-  trajectory7Day: { lat: number; lon: number; day: number }[];
-  predictedTrajectory?: { day: number; lat: number; lon: number; uncertaintyRadiusKm: number }[];
+  trajectory: { day: number; lat: number; lon: number }[];
   lastObserved: string;
   source: 'Sentinel-1 SAR' | 'BYU Scatterometer' | 'US NIC';
 }
@@ -47,6 +46,8 @@ export interface Waypoint {
   isWaypoint: boolean;
   name?: string;
   estimatedTimeHours?: number;
+  distanceToNearestIcebergNmi?: number;
+  nearestIcebergId?: string;
 }
 
 export interface SegmentClearance {
@@ -107,6 +108,7 @@ export interface RouteOption {
   feasibilityResult?: RouteFeasibilityResult;
   timeDependentResults?: TimeDependentRiskResult[];
   dynamicExplanation?: string;
+  routeRationale?: RouteRationale;
 }
 
 export interface SeaIceForecastParams {
@@ -127,4 +129,31 @@ export interface AIModelPipelineStatus {
   era5LastUpdated: string;
   hycomLastUpdated: string;
   activeModelVersion: string;
+}
+
+export interface HazardAvoided {
+  icebergId: string;
+  distanceIfDirectNmi: number;
+  distanceOnAIRouteNmi: number;
+}
+
+export interface RouteRationale {
+  day: number;
+  aiRouteSummary: string;
+  hazardsAvoided: HazardAvoided[];
+  iceConcentrationComparison: { directRouteAvgPct: number; aiRouteAvgPct: number };
+  plainLanguageExplanation: string;
+}
+
+export interface ScenarioDay {
+  day: number;
+  aiWaypoints: Waypoint[];
+  directWaypoints: Waypoint[];
+  rationale: RouteRationale;
+}
+
+export interface RouteScenario {
+  originId: string;
+  destinationId: string;
+  days: ScenarioDay[];
 }

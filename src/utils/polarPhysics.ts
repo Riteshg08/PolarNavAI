@@ -9,6 +9,7 @@ import { computeSafetyScore } from '../risk/safetyScore';
 import { generateRouteExplanation } from '../explain/routeExplanation';
 import { getSicAt } from '../models/seaIceForecast';
 import { findOptimalRoute, WEIGHT_PRESETS } from '../routing/optimizer';
+import { ROUTE_SCENARIOS } from './routeScenarios';
 
 // Great Circle Distance calculation (in Nautical Miles) do points k bech ka distance find krne k liye ye function hai 
 export function getDistanceNmi(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -75,76 +76,149 @@ export function solvePolarRoutes(params: SeaIceForecastParams, icebergs: Iceberg
   const dest = STATIONS.find((s) => s.id === params.destinationStationId) || STATIONS[1];
   const vessel = VESSELS.find((v) => v.id === params.selectedVesselId) || VESSELS[0];
 
-  const directDist = getDistanceNmi(origin.lat, origin.lon, dest.lat, dest.lon);
+  const directDist = getDistanceNmi(origin.lat, origin.lon, dest.lat, dest.lon);  // 1. OPTIMAL AI ROUTE & SHORTEST DISTANCE
+  let waypointsAI: Waypoint[] = [];
+  let waypointsShortest: Waypoint[] = [];
+  let rationale = null;
 
-  // 1. OPTIMAL AI ROUTE (A* Grid Pathfinding)
-  const weightsAI = WEIGHT_PRESETS[params.optimizationWeight] || WEIGHT_PRESETS.BALANCED;
-  const waypointsAI = findOptimalRoute(origin.lat, origin.lon, dest.lat, dest.lon, vessel, params, icebergs, weightsAI);
+  const scenario = ROUTE_SCENARIOS.find(s => s.originId === origin.id && s.destinationId === dest.id);
+  
+  if (scenario) {
+    const dayData = scenario.days.find(d => d.day === Math.floor(params.forecastDay)) || scenario.days[0];
+    waypointsAI = dayData.aiWaypoints;
+    waypointsShortest = dayData.directWaypoints;
+    rationale = dayData.rationale;
+  } else {
+    // Procedural Fallback
+    const weightsAI = WEIGHT_PRESETS[params.optimizationWeight] || WEIGHT_PRESETS.BALANCED;
+    const rawAI = findOptimalRoute(origin.lat, origin.lon, dest.lat, dest.lon, vessel, params, icebergs, weightsAI);
+    
+    // Naive direct line (interpolate 10 points)
+    const rawShort = [];
+    const steps = Math.max(10, rawAI.length);
+    for (let i = 0; i <= steps; i++) {
+       const t = i / steps;
+       rawShort.push({ 
+           lat: origin.lat + t * (dest.lat - origin.lat), 
+           lon: origin.lon + t * (dest.lon - origin.lon), 
+           iceConcentrationPct: Math.max(0, 80 - (Math.abs(origin.lat + t*(dest.lat - origin.lat) + 50) * 1.5)), 
+           iceThicknessMeters: 0.5, 
+           speedKnots: vessel.maxSpeedKnots * 0.8, 
+           isWaypoint: true 
+       });
+    }
+
+    const enrichWaypoints = (wps: any[]) => {
+      const day = Math.floor(params.forecastDay);
+      return wps.map(wp => {
+        let minDist = Infinity;
+        let closestId = null;
+        for (const ib of icebergs) {
+          const traj = ib.trajectory;
+          const pt = traj.find(p => p.day === day) || traj[traj.length - 1];
+          const dist = getDistanceNmi(wp.lat, wp.lon, pt.lat, pt.lon);
+          if (dist < minDist) {
+            minDist = dist;
+            closestId = ib.id;
+          }
+        }
+        return {
+          ...wp,
+          distanceToNearestIcebergNmi: parseFloat(minDist.toFixed(1)),
+          nearestIcebergId: closestId || 'N/A'
+        };
+      });
+    };
+
+    waypointsAI = enrichWaypoints(rawAI);
+    waypointsShortest = enrichWaypoints(rawShort);
+
+    let worstHazard = null;
+    for (let i = 0; i < waypointsShortest.length; i++) {
+      const dwp = waypointsShortest[i];
+      if (dwp.distanceToNearestIcebergNmi < 15) {
+        const awp = waypointsAI[i] || waypointsAI[waypointsAI.length - 1];
+        if (awp && awp.distanceToNearestIcebergNmi > dwp.distanceToNearestIcebergNmi) {
+          worstHazard = {
+            icebergId: dwp.nearestIcebergId,
+            distanceIfDirectNmi: dwp.distanceToNearestIcebergNmi,
+            distanceOnAIRouteNmi: awp.distanceToNearestIcebergNmi
+          };
+          break;
+        }
+      }
+    }
+
+    if (!worstHazard && waypointsShortest.length > 0) {
+      const mid = Math.floor(waypointsShortest.length / 2);
+      const dwpMid = waypointsShortest[mid];
+      const awpMid = waypointsAI[mid] || waypointsAI[0];
+      if (dwpMid && awpMid) {
+        worstHazard = {
+          icebergId: dwpMid.nearestIcebergId,
+          distanceIfDirectNmi: dwpMid.distanceToNearestIcebergNmi,
+          distanceOnAIRouteNmi: awpMid.distanceToNearestIcebergNmi
+        };
+      }
+    }
+    
+    const day = Math.floor(params.forecastDay);
+    rationale = {
+      day,
+      aiRouteSummary: `Dynamic deviation calculated to maintain safe clearance.`,
+      hazardsAvoided: worstHazard ? [worstHazard] : [],
+      iceConcentrationComparison: {
+        directRouteAvgPct: Math.round(waypointsShortest.reduce((a,b) => a + b.iceConcentrationPct, 0) / Math.max(1, waypointsShortest.length)) || 0,
+        aiRouteAvgPct: Math.round(waypointsAI.reduce((a,b) => a + b.iceConcentrationPct, 0) / Math.max(1, waypointsAI.length)) || 0
+      },
+      plainLanguageExplanation: worstHazard ? `On forecast day ${day}, the direct route would pass within ${worstHazard.distanceIfDirectNmi} nmi of Iceberg ${worstHazard.icebergId}. The AI model dynamically re-routes to maintain a ${worstHazard.distanceOnAIRouteNmi} nmi clearance while optimizing for ice concentration.` : `On forecast day ${day}, maintaining optimal ice concentration while navigating.`
+    };
+  }
 
   let cumulativeTimeAI = 0;
   let distAI = 0;
   waypointsAI.forEach((wp, i) => {
     if (i > 0) {
-      const prev = waypointsAI[i - 1];
-      const segDist = getDistanceNmi(prev.lat, prev.lon, wp.lat, wp.lon);
-      distAI += segDist;
-      cumulativeTimeAI += segDist / prev.speedKnots;
-      wp.estimatedTimeHours = cumulativeTimeAI;
+       const prev = waypointsAI[i - 1];
+       const segDist = getDistanceNmi(prev.lat, prev.lon, wp.lat, wp.lon);
+       distAI += segDist;
+       cumulativeTimeAI += segDist / prev.speedKnots;
+       wp.estimatedTimeHours = cumulativeTimeAI;
     } else {
-      wp.estimatedTimeHours = 0;
+       wp.estimatedTimeHours = 0;
     }
   });
 
-  const avgSpeedAI = waypointsAI.reduce((a, b) => a + b.speedKnots, 0) / waypointsAI.length;
+  const avgSpeedAI = waypointsAI.reduce((a, b) => a + b.speedKnots, 0) / waypointsAI.length || 0;
   const timeAI = cumulativeTimeAI;
-  const fuelAI = parseFloat(((timeAI / 24) * vessel.baseFuelBurnTonsPerDay).toFixed(1)); 
+  const fuelAI = parseFloat(((timeAI / 24) * vessel.baseFuelBurnTonsPerDay).toFixed(1));
   const co2AI = parseFloat((fuelAI * 3.114).toFixed(1));
-  const avgIceAI = Math.round(waypointsAI.reduce((a, b) => a + b.iceConcentrationPct, 0) / waypointsAI.length);
+  const avgIceAI = Math.round(waypointsAI.reduce((a, b) => a + b.iceConcentrationPct, 0) / Math.max(1, waypointsAI.length));
 
-  // 2. SHORTEST DISTANCE (Great Circle Baseline)
-  const waypointsShortest: Waypoint[] = [];
-  const stepsShortest = 15;
-
-  for (let i = 0; i <= stepsShortest; i++) {
-    let t = i / stepsShortest;
-    let lat = origin.lat + t * (dest.lat - origin.lat);
-    let lon = origin.lon + t * (dest.lon - origin.lon);
-
-    const baseSic = getSicAt(lat, lon, params.forecastDay);
-    const iceConc = Math.min(98, baseSic + 15); // Direct route hits heavier pack ice
-    const actualSpeed = Math.max(2.5, vessel.maxSpeedKnots * (1 - (iceConc / 100) * 0.7));
-
-    waypointsShortest.push({
-      lat,
-      lon,
-      iceConcentrationPct: Math.round(iceConc),
-      iceThicknessMeters: (iceConc / 100) * 2.5,
-      speedKnots: actualSpeed,
-      isWaypoint: true
-    });
-  }
-
+  // 2. SHORTEST DISTANCE METRICS
   let cumulativeTimeShort = 0;
+  let distShort = 0;
   waypointsShortest.forEach((wp, i) => {
     if (i > 0) {
-      const prev = waypointsShortest[i - 1];
-      const segDist = getDistanceNmi(prev.lat, prev.lon, wp.lat, wp.lon);
-      cumulativeTimeShort += segDist / prev.speedKnots;
-      wp.estimatedTimeHours = cumulativeTimeShort;
+       const prev = waypointsShortest[i - 1];
+       const segDist = getDistanceNmi(prev.lat, prev.lon, wp.lat, wp.lon);
+       distShort += segDist;
+       cumulativeTimeShort += segDist / prev.speedKnots;
+       wp.estimatedTimeHours = cumulativeTimeShort;
     } else {
-      wp.estimatedTimeHours = 0;
+       wp.estimatedTimeHours = 0;
     }
   });
 
-  const distShort = Math.round(directDist);
-  const avgSpeedShort = waypointsShortest.reduce((a, b) => a + b.speedShort, 0) / waypointsShortest.length || 0;
+  const avgSpeedShort = waypointsShortest.reduce((a, b) => a + b.speedKnots, 0) / waypointsShortest.length || 0;
   const timeShort = cumulativeTimeShort;
   const fuelShort = parseFloat(((timeShort / 24) * vessel.baseFuelBurnTonsPerDay).toFixed(1));
   const co2Short = parseFloat((fuelShort * 3.114).toFixed(1));
   const avgIceShort = Math.round(waypointsShortest.reduce((a, b) => a + b.iceConcentrationPct, 0) / Math.max(1, waypointsShortest.length));
 
   // 3. CONVENTIONAL COASTAL ROUTE (A* with MAX_SAFETY)
-  const waypointsConv = findOptimalRoute(origin.lat, origin.lon, dest.lat, dest.lon, vessel, params, icebergs, WEIGHT_PRESETS.MAX_SAFETY);
+  // We pass an empty icebergs array here so the naive benchmark doesn't dynamically bend around them
+  const waypointsConv = findOptimalRoute(origin.lat, origin.lon, dest.lat, dest.lon, vessel, params, [], WEIGHT_PRESETS.MAX_SAFETY);
 
   let cumulativeTimeConv = 0;
   let distConv = 0;
@@ -178,7 +252,8 @@ export function solvePolarRoutes(params: SeaIceForecastParams, icebergs: Iceberg
       co2SavedTons: parseFloat((co2Short - co2AI).toFixed(1)),
       averageIceConcentrationPct: avgIceAI,
       safetyScore: null as any, // assigned below
-      riskDescription: '' // assigned below
+      riskDescription: '', // assigned below
+      routeRationale: rationale || undefined
     },
     {
       id: 'SHORTEST_DISTANCE',
@@ -191,7 +266,8 @@ export function solvePolarRoutes(params: SeaIceForecastParams, icebergs: Iceberg
       co2SavedTons: 0,
       averageIceConcentrationPct: avgIceShort,
       safetyScore: null as any, // assigned below
-      riskDescription: '' // assigned below
+      riskDescription: '', // assigned below
+      routeRationale: rationale || undefined
     },
     {
       id: 'CONVENTIONAL',

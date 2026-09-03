@@ -12,14 +12,22 @@ import { DatasetMetadata } from '../data/types';
 
 export function getSicAt(lat: number, lon: number, day: number): number {
   let iceConc = 0;
-  // Use a base formula derived from the existing latitude-dependent gradient
-  if (lat < -60) {
-    iceConc = Math.min(95, Math.pow(Math.abs(lat + 60) / 11, 1.35) * 75);
+  
+  // Organic, realistic Antarctic ice edge (varies between -48°S and -57°S depending on oceanic sector)
+  const lonRad = (lon * Math.PI) / 180;
+  const iceEdgeLat = -52.5 - Math.sin(lonRad * 2) * 3.5 - Math.cos(lonRad * 3) * 2.0;
+
+  if (lat < iceEdgeLat) {
+    const latDiff = Math.abs(lat - iceEdgeLat);
+    // Smooth power curve reaching ~95% near continent margin
+    iceConc = Math.min(96, Math.pow(latDiff / 17, 1.25) * 82);
   }
+
   // Ice grows as forecast day progresses
   if (day > 0) {
-    iceConc += day * 2.5;
+    iceConc += day * 2.2;
   }
+
   return Math.max(0, Math.min(100, iceConc));
 }
 
@@ -33,7 +41,7 @@ export function getForecastGrid(day: number): {
   
   // Generate a sparse grid for the Antarctic region
   const grid = [];
-  for (let lat = -55; lat >= -80; lat -= 5) {
+  for (let lat = -50; lat >= -80; lat -= 5) {
     for (let lon = -180; lon <= 180; lon += 30) {
       grid.push({
         lat,

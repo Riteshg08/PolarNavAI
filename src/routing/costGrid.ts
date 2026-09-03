@@ -77,19 +77,23 @@ export function getCellCost(
   const fuelTons = (timeHours / 24) * vessel.baseFuelBurnTonsPerDay;
 
   // 3. Iceberg Proximity Risk
+  let icebergPenalty = 0;
   let minIcebergDist = Infinity;
+  const dayIdx = Math.floor(params.forecastDay);
   for (const iceberg of icebergs) {
-    // Projection based on forecast day
-    const traj = iceberg.predictedTrajectory || iceberg.trajectory7Day;
-    const pos = traj[Math.min(params.forecastDay, traj.length - 1)] || { lat: iceberg.lat, lon: iceberg.lon };
+    // Exact daily projection based on forecast day
+    const traj = iceberg.trajectory;
+    const pos = traj.find(p => p.day === dayIdx) || traj[traj.length - 1];
     const dist = getDistanceNmi(toNode.lat, toNode.lon, pos.lat, pos.lon);
     if (dist < minIcebergDist) minIcebergDist = dist;
-  }
-  
-  // Iceberg penalty: exponentially higher as you get closer to 25 nmi
-  let icebergPenalty = 0;
-  if (minIcebergDist < 25) {
-    icebergPenalty = Math.max(0, (25 - minIcebergDist) * 10); 
+    
+    // Calculate required clearance based on iceberg size (1 nmi = 1.852 km)
+    const icebergRadiusNmi = (iceberg.lengthKm / 2) / 1.852;
+    const clearanceNmi = icebergRadiusNmi + 25; // 25 nmi safety buffer
+    
+    if (dist < clearanceNmi) {
+      icebergPenalty += Math.pow((clearanceNmi + 5) - dist, 3) * 100; // Massive penalty
+    }
   }
 
   // 4. Weather / Ocean drag (mock placeholder)

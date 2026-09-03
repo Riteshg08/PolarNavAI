@@ -55,11 +55,6 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
           <BarChart3 size={15} color="#00f2fe" />
           <span>Route Analytics</span>
         </button>
-
-        <button className="btn-header" onClick={onOpenAIModel}>
-          <Cpu size={15} color="#38ef7d" />
-          <span>AI Engine</span>
-        </button>
       </div>
     </header>
   );

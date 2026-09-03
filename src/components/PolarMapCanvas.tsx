@@ -15,6 +15,8 @@ interface PolarMapCanvasProps {
   showIcebergs: boolean;
   showHeatmap: boolean;
   showVectors: boolean;
+  originStationId: string;
+  destinationStationId: string;
 }
 
 const R_FACTOR = 7.5;
@@ -103,15 +105,18 @@ export const PolarMapCanvas: React.FC<PolarMapCanvasProps> = ({
   forecastDay,
   showIcebergs,
   showHeatmap,
-  showVectors
+  showVectors,
+  originStationId,
+  destinationStationId
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   
-  const [vesselProgress, setVesselProgress] = useState<number>(0.25);
   const [dimensions, setDimensions] = useState({ width: 900, height: 650 });
   const [viewport, setViewport] = useState({ centerLat: -65.0, centerLon: 45.0, zoom: 1.4 });
   const [hasManualOverride, setHasManualOverride] = useState(false);
+  const [hoveredStationId, setHoveredStationId] = useState<string | null>(null);
+  const [hoveredHazard, setHoveredHazard] = useState<{ x: number, y: number, text: string } | null>(null);
   
   // Dragging state
   const [isDragging, setIsDragging] = useState(false);
@@ -149,7 +154,7 @@ export const PolarMapCanvas: React.FC<PolarMapCanvasProps> = ({
         }
     });
 
-    const newViewport = computeFitViewport(points, dimensions.width, dimensions.height, 60);
+    const newViewport = computeFitViewport(points, dimensions.width, dimensions.height, 80);
     setViewport(newViewport);
     setHasManualOverride(false);
   }, [activeRoute, dimensions, icebergs]);
@@ -160,14 +165,6 @@ export const PolarMapCanvas: React.FC<PolarMapCanvasProps> = ({
       fitToActiveRoute();
     }
   }, [activeRouteId, routes, dimensions.width, dimensions.height, hasManualOverride, fitToActiveRoute]);
-
-  // Animation Loop for Sailing Vessel
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setVesselProgress((prev) => (prev >= 1 ? 0 : prev + 0.003));
-    }, 50);
-    return () => clearInterval(interval);
-  }, []);
 
   // Main Canvas Render
   useEffect(() => {
@@ -186,54 +183,86 @@ export const PolarMapCanvas: React.FC<PolarMapCanvasProps> = ({
 
     const labelsToDraw: { text: string, tx: number, ty: number, color: string, font: string }[] = [];
 
-    // 1. Draw Polar Grid Rings (-40°, -50°, -60°, -70°, -80°)
-    ctx.strokeStyle = 'rgba(0, 242, 254, 0.08)';
+    // 1. Draw Polar Grid Rings (-60°, -70°) and Longitude Lines
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
     ctx.lineWidth = 1;
-    [-40, -50, -60, -70, -80].forEach((lat) => {
+    
+    // Rings
+    [-60, -70].forEach((lat) => {
       const center = latLonToCanvas(lat, viewport.centerLon, width, height, viewport);
       const r = (90 + lat) * viewport.zoom * R_FACTOR;
       ctx.beginPath();
       ctx.arc(center.x, center.y, r, 0, 2 * Math.PI);
       ctx.stroke();
 
-      ctx.fillStyle = 'rgba(139, 155, 180, 0.4)';
-      ctx.font = '10px JetBrains Mono';
-      // Approximate label position
-      ctx.fillText(`${lat}° S`, center.x + 6, center.y - r + 12);
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+      ctx.font = '10px Inter';
+      ctx.fillText(`${lat}° S`, center.x + 4, center.y - r + 12);
     });
+
+    // Faint Longitude Reference Lines
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.02)';
+    for (let lon = -180; lon < 180; lon += 30) {
+      const center = latLonToCanvas(-90, lon, width, height, viewport);
+      const outer = latLonToCanvas(-50, lon, width, height, viewport);
+      ctx.beginPath();
+      ctx.moveTo(center.x, center.y);
+      ctx.lineTo(outer.x, outer.y);
+      ctx.stroke();
+    }
 
     // Pre-calculate continent path to use for both land masking and drawing
     const antarcticPoints = [
-      { lat: -68.0, lon: -10 },
-      { lat: -70.76, lon: 11.73 }, // Maitri
-      { lat: -69.0, lon: 40.0 },
-      { lat: -69.41, lon: 76.19 }, // Bharati
-      { lat: -67.0, lon: 100.0 },
-      { lat: -66.0, lon: 140.0 },
-      { lat: -77.85, lon: 166.67 }, // McMurdo
-      { lat: -82.0, lon: -170.0 },
-      { lat: -75.0, lon: -110.0 },
-      { lat: -65.0, lon: -65.0 }, // Antarctic Peninsula
-      { lat: -75.0, lon: -40.0 }
+      { lat: -63.3, lon: -57.0 },  // Antarctic Peninsula Tip
+      { lat: -73.0, lon: -60.0 },  // Palmer Land
+      { lat: -74.0, lon: -75.0 },  // Ellsworth Land
+      { lat: -73.0, lon: -100.0 }, // Amundsen Sea coast
+      { lat: -75.0, lon: -140.0 }, // Marie Byrd Land
+      { lat: -78.0, lon: -160.0 }, // Ross Ice Shelf edge
+      { lat: -77.8, lon: 166.0 },  // McMurdo area
+      { lat: -70.0, lon: 160.0 },  // Victoria Land
+      { lat: -66.0, lon: 140.0 },  // Wilkes Land
+      { lat: -65.0, lon: 110.0 },  // Law Dome
+      { lat: -67.0, lon: 90.0 },   // Mirny area
+      { lat: -69.4, lon: 76.2 },   // Bharati area (Prydz Bay)
+      { lat: -68.0, lon: 60.0 },   // Mac Robertson Land
+      { lat: -69.0, lon: 40.0 },   // Enderby Land
+      { lat: -70.7, lon: 11.7 },   // Maitri area (Queen Maud Land)
+      { lat: -72.0, lon: -10.0 },  // Princess Astrid Coast
+      { lat: -75.0, lon: -25.0 },  // Weddell Sea coast
+      { lat: -74.0, lon: -40.0 },  // Filchner Ice Shelf
+      { lat: -68.0, lon: -60.0 }   // Back to Peninsula base
     ];
 
     const continentPath = new Path2D();
-    antarcticPoints.forEach((pt, idx) => {
-      const { x, y } = latLonToCanvas(pt.lat, pt.lon, width, height, viewport);
-      if (idx === 0) continentPath.moveTo(x, y);
-      else continentPath.lineTo(x, y);
-    });
+    const pts = antarcticPoints.map(pt => latLonToCanvas(pt.lat, pt.lon, width, height, viewport));
+    
+    if (pts.length > 0) {
+      continentPath.moveTo(pts[0].x, pts[0].y);
+      for (let i = 0; i < pts.length; i++) {
+        const p1 = pts[i];
+        const p2 = pts[(i + 1) % pts.length];
+        const midPoint = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
+        
+        if (i === 0) {
+          continentPath.lineTo(midPoint.x, midPoint.y);
+        } else {
+          continentPath.quadraticCurveTo(p1.x, p1.y, midPoint.x, midPoint.y);
+        }
+      }
+      continentPath.lineTo(pts[0].x, pts[0].y);
+    }
     continentPath.closePath();
 
     // 2. Draw Sea Ice Heatmap Layer (Geographic Grid)
     if (showHeatmap) {
       const confidenceAlpha = Math.max(0.3, (95 - (forecastDay * (30 / 7))) / 100);
 
-      // Grid bounds: covers typical Southern Ocean/Antarctic coastline
+      // Grid bounds: covers Southern Ocean & Antarctic coastal waters
       const latStep = 1.5;
       const lonStep = 3.0;
 
-      for (let lat = -50; lat >= -80; lat -= latStep) {
+      for (let lat = -46; lat >= -82; lat -= latStep) {
         for (let lon = -180; lon <= 180; lon += lonStep) {
           // Check if cell is over land, skip if so
           const center = latLonToCanvas(lat, lon, width, height, viewport);
@@ -245,13 +274,13 @@ export const PolarMapCanvas: React.FC<PolarMapCanvasProps> = ({
 
           let fillColor = '';
           if (sic >= 90) {
-            fillColor = `rgba(255, 255, 255, ${0.85 * confidenceAlpha})`; // Fast Ice / Ice Shelf
+            fillColor = `rgba(255, 255, 255, ${0.45 * confidenceAlpha})`; // Fast Ice / Ice Shelf
           } else if (sic >= 60) {
-            fillColor = `rgba(0, 242, 254, ${0.45 * confidenceAlpha})`;   // Heavy Pack Ice
+            fillColor = `rgba(180, 220, 255, ${0.25 * confidenceAlpha})`; // Heavy Pack Ice
           } else if (sic >= 40) {
-            fillColor = `rgba(79, 172, 254, ${0.30 * confidenceAlpha})`;  // Marginal Ice Zone
+            fillColor = `rgba(140, 200, 255, ${0.15 * confidenceAlpha})`; // Marginal Ice Zone
           } else { // 20-40%
-            fillColor = `rgba(79, 172, 254, ${0.15 * confidenceAlpha})`;  // Sparse Ice
+            fillColor = `rgba(100, 180, 255, ${0.08 * confidenceAlpha})`; // Sparse Ice
           }
 
           // Project 4 corners (slightly expanded by 0.1 deg to avoid checkerboard gaps)
@@ -274,10 +303,10 @@ export const PolarMapCanvas: React.FC<PolarMapCanvasProps> = ({
     }
 
     // 3. Draw Simplified Antarctic Continent Silhouette
-    ctx.fillStyle = 'rgba(15, 32, 58, 0.85)';
+    ctx.fillStyle = 'rgba(10, 18, 32, 0.7)';
     ctx.fill(continentPath);
-    ctx.strokeStyle = 'rgba(0, 242, 254, 0.4)';
-    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+    ctx.lineWidth = 1;
     ctx.stroke(continentPath);
 
     // 4. Draw Navigation Routes
@@ -291,42 +320,59 @@ export const PolarMapCanvas: React.FC<PolarMapCanvasProps> = ({
       });
 
       if (route.id === 'OPTIMAL_AI') {
-        ctx.strokeStyle = isSelected ? '#00f2fe' : 'rgba(0, 242, 254, 0.4)';
-        ctx.lineWidth = isSelected ? 3.5 : 2;
-        ctx.shadowColor = '#00f2fe';
-        ctx.shadowBlur = isSelected ? 12 : 0;
+        ctx.strokeStyle = isSelected ? '#00f2fe' : 'rgba(0, 242, 254, 0.2)';
+        ctx.lineWidth = isSelected ? 2 : 1;
       } else if (route.id === 'SHORTEST_DISTANCE') {
-        ctx.strokeStyle = isSelected ? '#ff4b5c' : 'rgba(255, 75, 92, 0.35)';
-        ctx.lineWidth = isSelected ? 3 : 1.5;
-        ctx.setLineDash([6, 6]);
+        ctx.strokeStyle = isSelected ? 'rgba(255, 75, 92, 0.8)' : 'rgba(255, 75, 92, 0.15)';
+        ctx.lineWidth = isSelected ? 1.5 : 1;
       } else {
-        ctx.strokeStyle = isSelected ? '#ffb703' : 'rgba(255, 183, 3, 0.35)';
-        ctx.lineWidth = isSelected ? 3 : 1.5;
-        ctx.setLineDash([3, 3]);
+        ctx.strokeStyle = isSelected ? 'rgba(255, 183, 3, 0.8)' : 'rgba(255, 183, 3, 0.15)';
+        ctx.lineWidth = isSelected ? 1.5 : 1;
       }
 
       ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.shadowBlur = 0;
 
       if (isSelected) {
-        route.waypoints.forEach((wp) => {
-          if (wp.isWaypoint) {
+        // Draw evenly spaced small tracking dots along the active route
+        route.waypoints.forEach((wp, wpIdx) => {
+          if (wpIdx % 3 === 0) { // arbitrary spacing for tracker dots
             const { x, y } = latLonToCanvas(wp.lat, wp.lon, width, height, viewport);
             ctx.beginPath();
-            ctx.arc(x, y, 4, 0, 2 * Math.PI);
-            ctx.fillStyle = '#00f2fe';
+            ctx.arc(x, y, 1.5, 0, 2 * Math.PI);
+            ctx.fillStyle = route.id === 'OPTIMAL_AI' ? '#00f2fe' : (route.id === 'SHORTEST_DISTANCE' ? '#ff4b5c' : '#ffb703');
             ctx.fill();
-            ctx.strokeStyle = '#050b14';
-            ctx.lineWidth = 1.5;
-            ctx.stroke();
+
+            // Hazard marker check
+            if (route.id === 'SHORTEST_DISTANCE' && route.routeRationale && route.routeRationale.hazardsAvoided) {
+              const hazard = route.routeRationale.hazardsAvoided.find(h => h.icebergId === wp.nearestIcebergId);
+              if (hazard && wp.distanceToNearestIcebergNmi && wp.distanceToNearestIcebergNmi < 15) {
+                // Draw a small warning glyph
+                ctx.beginPath();
+                ctx.arc(x, y, 6, 0, 2 * Math.PI);
+                ctx.fillStyle = 'rgba(255, 75, 92, 0.4)';
+                ctx.fill();
+                ctx.strokeStyle = '#ff4b5c';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+                
+                // Exclamation mark
+                ctx.fillStyle = '#fff';
+                ctx.font = 'bold 8px monospace';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('!', x, y);
+              }
+            }
           }
         });
       }
     });
 
-    // 5. Draw Sailing Vessel Icon on Active Route
-    if (activeRoute && activeRoute.waypoints.length > 1) {
+    // 5. Draw Vessel Progress
+    if (activeRoute && activeRoute.waypoints.length > 0) {
+      const totalVoyageDays = activeRoute.totalTimeHours / 24;
+      const vesselProgress = Math.min(forecastDay / Math.max(0.1, totalVoyageDays), 1);
+
       const idxFloat = vesselProgress * (activeRoute.waypoints.length - 1);
       const currIdx = Math.floor(idxFloat);
       const nextIdx = Math.min(currIdx + 1, activeRoute.waypoints.length - 1);
@@ -340,15 +386,12 @@ export const PolarMapCanvas: React.FC<PolarMapCanvasProps> = ({
       const { x: vx, y: vy } = latLonToCanvas(vesselLat, vesselLon, width, height, viewport);
 
       ctx.beginPath();
-      ctx.arc(vx, vy, 7, 0, 2 * Math.PI);
-      ctx.fillStyle = '#38ef7d';
-      ctx.shadowColor = '#38ef7d';
-      ctx.shadowBlur = 14;
+      ctx.arc(vx, vy, 4, 0, 2 * Math.PI);
+      ctx.fillStyle = '#00f2fe';
       ctx.fill();
-      ctx.shadowBlur = 0;
 
       ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 1;
       ctx.stroke();
 
       labelsToDraw.push({
@@ -363,50 +406,55 @@ export const PolarMapCanvas: React.FC<PolarMapCanvasProps> = ({
     // 6. Draw Icebergs & Drift Vector Trajectories
     if (showIcebergs) {
       icebergs.forEach((iceberg) => {
-        const trajectory = iceberg.predictedTrajectory || iceberg.trajectory7Day;
-        const currentLat = iceberg.lat + (forecastDay * (trajectory[1].lat - iceberg.lat));
-        const currentLon = iceberg.lon + (forecastDay * (trajectory[1].lon - iceberg.lon));
+        const trajectory = iceberg.trajectory;
+        const dayIdx = Math.floor(forecastDay);
+        const pt = trajectory.find(p => p.day === dayIdx) || trajectory[trajectory.length - 1];
+        const currentLat = pt.lat;
+        const currentLon = pt.lon;
         const { x, y } = latLonToCanvas(currentLat, currentLon, width, height, viewport);
 
         const isSelected = selectedIceberg?.id === iceberg.id;
 
         if (showVectors) {
-          if (iceberg.predictedTrajectory) {
-            iceberg.predictedTrajectory.forEach((pt, i, arr) => {
-              if (i === 0) return;
-              const prev = arr[i - 1];
-              const { x: x1, y: y1 } = latLonToCanvas(prev.lat, prev.lon, width, height, viewport);
-              const { x: x2, y: y2 } = latLonToCanvas(pt.lat, pt.lon, width, height, viewport);
-              const r1 = (prev.uncertaintyRadiusKm / 111) * viewport.zoom * R_FACTOR;
-              const r2 = (pt.uncertaintyRadiusKm / 111) * viewport.zoom * R_FACTOR;
+          const forecastWindow = trajectory.slice(dayIdx, dayIdx + 8);
 
-              const angle = Math.atan2(y2 - y1, x2 - x1);
-              const p1x = x1 + Math.cos(angle - Math.PI/2) * r1;
-              const p1y = y1 + Math.sin(angle - Math.PI/2) * r1;
-              const p2x = x1 + Math.cos(angle + Math.PI/2) * r1;
-              const p2y = y1 + Math.sin(angle + Math.PI/2) * r1;
-              const p3x = x2 + Math.cos(angle + Math.PI/2) * r2;
-              const p3y = y2 + Math.sin(angle + Math.PI/2) * r2;
-              const p4x = x2 + Math.cos(angle - Math.PI/2) * r2;
-              const p4y = y2 + Math.sin(angle - Math.PI/2) * r2;
+          forecastWindow.forEach((pt, i, arr) => {
+            if (i === 0) return;
+            const prev = arr[i - 1];
+            const { x: x1, y: y1 } = latLonToCanvas(prev.lat, prev.lon, width, height, viewport);
+            const { x: x2, y: y2 } = latLonToCanvas(pt.lat, pt.lon, width, height, viewport);
+            
+            const r1Km = (i - 1) * 1.5;
+            const r2Km = i * 1.5;
+            const r1 = (r1Km / 111) * viewport.zoom * R_FACTOR;
+            const r2 = (r2Km / 111) * viewport.zoom * R_FACTOR;
 
-              ctx.beginPath();
-              ctx.moveTo(p1x, p1y);
-              ctx.lineTo(p2x, p2y);
-              ctx.lineTo(p3x, p3y);
-              ctx.lineTo(p4x, p4y);
-              ctx.closePath();
-              ctx.fillStyle = iceberg.hazardLevel === 'CRITICAL' ? 'rgba(255, 75, 92, 0.15)' : 'rgba(255, 183, 3, 0.15)';
-              ctx.fill();
+            const angle = Math.atan2(y2 - y1, x2 - x1);
+            const p1x = x1 + Math.cos(angle - Math.PI/2) * r1;
+            const p1y = y1 + Math.sin(angle - Math.PI/2) * r1;
+            const p2x = x1 + Math.cos(angle + Math.PI/2) * r1;
+            const p2y = y1 + Math.sin(angle + Math.PI/2) * r1;
+            const p3x = x2 + Math.cos(angle + Math.PI/2) * r2;
+            const p3y = y2 + Math.sin(angle + Math.PI/2) * r2;
+            const p4x = x2 + Math.cos(angle - Math.PI/2) * r2;
+            const p4y = y2 + Math.sin(angle - Math.PI/2) * r2;
 
-              ctx.beginPath();
-              ctx.arc(x2, y2, r2, 0, 2 * Math.PI);
-              ctx.fill();
-            });
-          }
+            ctx.beginPath();
+            ctx.moveTo(p1x, p1y);
+            ctx.lineTo(p2x, p2y);
+            ctx.lineTo(p3x, p3y);
+            ctx.lineTo(p4x, p4y);
+            ctx.closePath();
+            ctx.fillStyle = iceberg.hazardLevel === 'CRITICAL' ? 'rgba(255, 75, 92, 0.15)' : 'rgba(255, 183, 3, 0.15)';
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.arc(x2, y2, r2, 0, 2 * Math.PI);
+            ctx.fill();
+          });
 
           ctx.beginPath();
-          trajectory.forEach((pt, i) => {
+          forecastWindow.forEach((pt, i) => {
             const { x: tx, y: ty } = latLonToCanvas(pt.lat, pt.lon, width, height, viewport);
             if (i === 0) ctx.moveTo(tx, ty);
             else ctx.lineTo(tx, ty);
@@ -419,43 +467,52 @@ export const PolarMapCanvas: React.FC<PolarMapCanvasProps> = ({
         }
 
         ctx.beginPath();
-        const size = Math.max(8, iceberg.lengthKm / 3);
+        const size = Math.max(4, iceberg.lengthKm / 5);
         ctx.rect(x - size / 2, y - size / 2, size, size);
-        ctx.fillStyle = isSelected ? '#ff4b5c' : '#ffffff';
-        ctx.shadowColor = isSelected ? '#ff4b5c' : '#00f2fe';
-        ctx.shadowBlur = isSelected ? 16 : 8;
+        ctx.fillStyle = isSelected ? 'rgba(255, 183, 3, 0.8)' : (iceberg.hazardLevel === 'CRITICAL' ? 'rgba(255, 75, 92, 0.8)' : 'rgba(255, 255, 255, 0.2)');
         ctx.fill();
-        ctx.shadowBlur = 0;
 
-        ctx.strokeStyle = iceberg.hazardLevel === 'CRITICAL' ? '#ff4b5c' : '#00f2fe';
-        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = isSelected ? '#ffb703' : (iceberg.hazardLevel === 'CRITICAL' ? '#ff4b5c' : 'rgba(255, 255, 255, 0.4)');
+        ctx.lineWidth = 1;
         ctx.stroke();
 
-        ctx.fillStyle = isSelected ? '#ff4b5c' : '#e2e8f0';
-        ctx.font = '10px Inter';
-        ctx.fillText(iceberg.name.split(' ')[1] || iceberg.name, x + size + 4, y + 3);
+        if (isSelected || iceberg.hazardLevel === 'CRITICAL' || viewport.zoom > 1.5) {
+          labelsToDraw.push({
+            text: iceberg.name.split(' ')[1] || iceberg.name,
+            tx: x + size + 4,
+            ty: y + 3,
+            color: isSelected ? '#ff4b5c' : '#e2e8f0',
+            font: '10px Inter'
+          });
+        }
       });
     }
 
     // 7. Draw Research Stations
     STATIONS.forEach((st) => {
       const { x, y } = latLonToCanvas(st.lat, st.lon, width, height, viewport);
+      const isSelected = st.id === originStationId || st.id === destinationStationId;
+      const isHovered = st.id === hoveredStationId;
+      const shouldShowLabel = isSelected || isHovered;
 
       ctx.beginPath();
-      ctx.arc(x, y, st.id.includes('BHARATI') || st.id.includes('MAITRI') ? 6 : 5, 0, 2 * Math.PI);
-      ctx.fillStyle = st.country === 'India' ? '#ff9933' : '#00f2fe';
+      ctx.arc(x, y, shouldShowLabel ? 4 : 2, 0, 2 * Math.PI);
+      ctx.fillStyle = shouldShowLabel ? (st.country === 'India' ? '#ffb703' : '#ffffff') : 'rgba(255, 255, 255, 0.3)';
       ctx.fill();
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
       
-      labelsToDraw.push({
-        text: st.name,
-        tx: x + 8,
-        ty: y + 4,
-        color: '#ffffff',
-        font: 'bold 11px Inter'
-      });
+      if (shouldShowLabel) {
+        ctx.strokeStyle = '#050b14';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        
+        labelsToDraw.push({
+          text: st.name,
+          tx: x + 6,
+          ty: y + 3,
+          color: '#e2e8f0',
+          font: '10px Inter'
+        });
+      }
     });
 
     // 8. Render Labels with Collision Avoidance
@@ -508,7 +565,7 @@ export const PolarMapCanvas: React.FC<PolarMapCanvasProps> = ({
 
     ctx.restore();
 
-  }, [routes, activeRouteId, selectedIceberg, forecastDay, showIcebergs, showHeatmap, showVectors, vesselProgress, icebergs, viewport, dimensions]);
+  }, [routes, activeRouteId, selectedIceberg, forecastDay, showIcebergs, showHeatmap, showVectors, icebergs, viewport, dimensions, hoveredStationId, originStationId, destinationStationId]);
 
   // Map Controls Handlers
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -518,28 +575,63 @@ export const PolarMapCanvas: React.FC<PolarMapCanvasProps> = ({
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isDragging) return;
-    setHasManualOverride(true);
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!rect) return;
     
-    const dx = e.clientX - dragStartPixelRef.current.x;
-    const dy = e.clientY - dragStartPixelRef.current.y;
-    
-    // Reverse lookup to find new center
-    // We want the original center pixel (which was at width/2, height/2) to have moved by dx, dy.
-    // So the new center geographic coordinate is what used to be at width/2 - dx, height/2 - dy
-    const newCenterLatLon = canvasToLatLon(
-      dimensions.width / 2 - dx, 
-      dimensions.height / 2 - dy, 
-      dimensions.width, 
-      dimensions.height, 
-      dragStartViewportRef.current
-    );
-    
-    setViewport({
-      ...viewport,
-      centerLat: newCenterLatLon.lat,
-      centerLon: newCenterLatLon.lon
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+
+    if (isDragging) {
+      setHasManualOverride(true);
+      const dx = e.clientX - dragStartPixelRef.current.x;
+      const dy = e.clientY - dragStartPixelRef.current.y;
+      
+      const newCenterLatLon = canvasToLatLon(
+        dimensions.width / 2 - dx, 
+        dimensions.height / 2 - dy, 
+        dimensions.width, 
+        dimensions.height, 
+        dragStartViewportRef.current
+      );
+      
+      setViewport({
+        ...viewport,
+        centerLat: newCenterLatLon.lat,
+        centerLon: newCenterLatLon.lon
+      });
+      return;
+    }
+
+    // Hover detection for stations
+    let foundHover: string | null = null;
+    let foundHazardHover: { x: number, y: number, text: string } | null = null;
+
+    STATIONS.forEach(station => {
+      const { x, y } = latLonToCanvas(station.lat, station.lon, dimensions.width, dimensions.height, viewport);
+      if (Math.hypot(mouseX - x, mouseY - y) < 15) {
+        foundHover = station.id;
+      }
     });
+    
+    // Check hazards on SHORTEST_DISTANCE route
+    const shortestRoute = routes.find(r => r.id === 'SHORTEST_DISTANCE');
+    if (shortestRoute && shortestRoute.routeRationale) {
+      shortestRoute.waypoints.forEach(wp => {
+         const { x, y } = latLonToCanvas(wp.lat, wp.lon, dimensions.width, dimensions.height, viewport);
+         if (Math.hypot(mouseX - x, mouseY - y) < 8) {
+            const hazard = shortestRoute.routeRationale!.hazardsAvoided.find((h: any) => h.icebergId === wp.nearestIcebergId);
+            if (hazard && wp.distanceToNearestIcebergNmi && wp.distanceToNearestIcebergNmi < 15) {
+               foundHazardHover = {
+                 x, y,
+                 text: `${wp.distanceToNearestIcebergNmi} nmi from Iceberg ${hazard.icebergId} — CRITICAL hazard`
+               };
+            }
+         }
+      });
+    }
+
+    setHoveredStationId(foundHover);
+    setHoveredHazard(foundHazardHover);
   };
 
   const handleMouseUp = () => {
@@ -595,16 +687,7 @@ export const PolarMapCanvas: React.FC<PolarMapCanvasProps> = ({
         </div>
       </div>
 
-      {/* Top Right Layers Overlay */}
-      <div className="map-overlay-top-right">
-        <div className="map-card-sm" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Layers size={14} color="#00f2fe" />
-          <span style={{ fontSize: '0.78rem', color: '#8b9bb4' }}>
-            AMSR2 Sea Ice • Day +{forecastDay}
-          </span>
-        </div>
-      </div>
-      
+
       {/* Viewport Controls Overlay */}
       <div style={{ position: 'absolute', bottom: '20px', right: '20px', display: 'flex', flexDirection: 'column', gap: '8px', zIndex: 10 }}>
         <button className="btn-header" onClick={handleZoomIn} style={{ padding: '8px', background: 'rgba(5, 11, 20, 0.85)', borderRadius: '8px', border: '1px solid var(--border-glass)', cursor: 'pointer' }}>
@@ -689,6 +772,73 @@ export const PolarMapCanvas: React.FC<PolarMapCanvasProps> = ({
           </div>
         </div>
       </div>
+      {hoveredHazard && (
+        <div style={{
+          position: 'absolute',
+          left: hoveredHazard.x + 15,
+          top: hoveredHazard.y - 15,
+          background: 'rgba(10, 18, 32, 0.95)',
+          border: '1px solid #ff4b5c',
+          borderRadius: '4px',
+          padding: '6px 10px',
+          color: '#fff',
+          fontSize: '11px',
+          pointerEvents: 'none',
+          zIndex: 50,
+          whiteSpace: 'nowrap',
+          boxShadow: '0 4px 12px rgba(255, 75, 92, 0.2)'
+        }}>
+          ⚠️ {hoveredHazard.text}
+        </div>
+      )}
+
+      {/* Rationale Panel Overlay */}
+      {activeRoute?.routeRationale && (
+        <div style={{
+          position: 'absolute',
+          top: '20px',
+          right: '20px',
+          width: '320px',
+          background: 'var(--bg-glass)',
+          border: '1px solid rgba(0, 242, 254, 0.2)',
+          borderRadius: '8px',
+          padding: '16px',
+          color: '#fff',
+          backdropFilter: 'blur(10px)',
+          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
+          zIndex: 10,
+          pointerEvents: 'none' // allow clicking through
+        }}>
+          <h3 style={{ margin: '0 0 12px 0', fontSize: '14px', color: 'var(--primary-cyan)', borderBottom: '1px solid rgba(0,242,254,0.2)', paddingBottom: '8px' }}>
+            Why this path? (Day {activeRoute.routeRationale.day})
+          </h3>
+          <p style={{ margin: '0 0 12px 0', fontSize: '13px', lineHeight: '1.4', color: 'var(--text-muted)' }}>
+            {activeRoute.routeRationale.plainLanguageExplanation}
+          </p>
+          
+          {activeRoute.routeRationale.hazardsAvoided.length > 0 && (
+            <div style={{ marginBottom: '12px', padding: '8px', background: 'rgba(255, 75, 92, 0.1)', borderRadius: '4px', borderLeft: '2px solid var(--accent-red)' }}>
+              <div style={{ fontSize: '11px', color: 'var(--accent-red)', textTransform: 'uppercase', marginBottom: '4px', fontWeight: 'bold' }}>Avoided Hazard</div>
+              {activeRoute.routeRationale.hazardsAvoided.map(h => (
+                <div key={h.icebergId} style={{ fontSize: '12px' }}>
+                  <strong>{h.icebergId}</strong>: Direct clearance {h.distanceIfDirectNmi}nmi vs AI {h.distanceOnAIRouteNmi}nmi
+                </div>
+              ))}
+            </div>
+          )}
+          
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
+            <div>
+              <div style={{ color: 'var(--text-muted)' }}>AI Route Ice</div>
+              <div style={{ fontWeight: 'bold' }}>{activeRoute.routeRationale.iceConcentrationComparison.aiRouteAvgPct}% Avg</div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ color: 'var(--text-muted)' }}>Direct Route Ice</div>
+              <div style={{ fontWeight: 'bold', color: 'var(--accent-amber)' }}>{activeRoute.routeRationale.iceConcentrationComparison.directRouteAvgPct}% Avg</div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
