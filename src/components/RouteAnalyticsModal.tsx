@@ -62,6 +62,16 @@ export const RouteAnalyticsModal: React.FC<RouteAnalyticsModalProps> = ({
             </div>
           </div>
 
+          {/* No Feasible Route Notice */}
+          {routes.length > 0 && routes.every(r => r.feasibilityResult && !r.feasibilityResult.feasible) && (
+            <div style={{ marginBottom: '16px', padding: '12px 16px', background: 'rgba(255, 75, 92, 0.12)', border: '1px solid rgba(255, 75, 92, 0.4)', borderRadius: '8px', color: '#ff4b5c', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <AlertOctagon size={20} style={{ flexShrink: 0 }} />
+              <div>
+                <strong>NO FEASIBLE ROUTE AVAILABLE</strong> — All trajectory options exceed safe ice-breaking limits for the selected vessel under current forecast conditions. Select a vessel with higher ice-breaking capacity (e.g. PC3 or PC1) to navigate safely.
+              </div>
+            </div>
+          )}
+
           {/* Route Comparison Table */}
           <h4 style={{ color: '#00f2fe', marginBottom: '10px' }}>Trajectory Option Comparison</h4>
           <table className="data-table">
@@ -78,18 +88,19 @@ export const RouteAnalyticsModal: React.FC<RouteAnalyticsModalProps> = ({
             </thead>
             <tbody>
               {routes.map((r) => {
-                const isSelected = r.id === activeRouteId;
+                const isFeasible = !r.feasibilityResult || r.feasibilityResult.feasible;
+                const isCurrentlyActive = r.id === activeRouteId && isFeasible;
                 const days = (r.totalTimeHours / 24).toFixed(1);
                 return (
                   <tr
                     key={r.id}
                     style={{
-                      background: isSelected ? 'rgba(0, 242, 254, 0.12)' : 'transparent'
+                      background: isCurrentlyActive ? 'rgba(0, 242, 254, 0.12)' : (!isFeasible ? 'rgba(255, 75, 92, 0.05)' : 'transparent')
                     }}
                   >
                     <td>
-                      <strong style={{ color: r.clearanceResult?.overallStatus === 'DANGER' ? 'var(--accent-red)' : (r.id === 'OPTIMAL_AI' ? '#00f2fe' : '#ffffff') }}>
-                        {r.clearanceResult?.overallStatus === 'DANGER' && <AlertOctagon size={14} style={{ display: 'inline', marginRight: '4px', verticalAlign: 'text-bottom' }} />}
+                      <strong style={{ color: !isFeasible ? 'var(--accent-red)' : (r.id === 'OPTIMAL_AI' ? '#00f2fe' : '#ffffff') }}>
+                        {!isFeasible && <AlertOctagon size={14} style={{ display: 'inline', marginRight: '4px', verticalAlign: 'text-bottom' }} />}
                         {r.title}
                       </strong>
                       <div style={{ fontSize: '0.72rem', color: '#8b9bb4' }}>{r.riskDescription}</div>
@@ -132,7 +143,9 @@ export const RouteAnalyticsModal: React.FC<RouteAnalyticsModalProps> = ({
                     <td>
                       <div
                         className={`badge ${
-                          r.safetyScore.total > 80
+                          !isFeasible
+                            ? 'badge-red'
+                            : r.safetyScore.total > 80
                             ? 'badge-green'
                             : r.safetyScore.total > 60
                             ? 'badge-amber'
@@ -150,12 +163,18 @@ export const RouteAnalyticsModal: React.FC<RouteAnalyticsModalProps> = ({
                     </td>
                     <td>
                       <button
-                        className={`btn-preset ${isSelected ? 'active' : ''}`}
-                        onClick={() => onSelectRoute(r.id)}
-                        disabled={r.feasibilityResult && !r.feasibilityResult.feasible}
-                        style={{ opacity: (r.feasibilityResult && !r.feasibilityResult.feasible) ? 0.4 : 1, cursor: (r.feasibilityResult && !r.feasibilityResult.feasible) ? 'not-allowed' : 'pointer' }}
+                        className={`btn-preset ${isCurrentlyActive ? 'active' : ''}`}
+                        onClick={() => isFeasible && onSelectRoute(r.id)}
+                        disabled={!isFeasible}
+                        style={{
+                          opacity: isFeasible ? 1 : 0.4,
+                          cursor: isFeasible ? 'pointer' : 'not-allowed',
+                          background: !isFeasible ? 'rgba(255, 75, 92, 0.15)' : undefined,
+                          borderColor: !isFeasible ? 'rgba(255, 75, 92, 0.4)' : undefined,
+                          color: !isFeasible ? '#ff4b5c' : undefined
+                        }}
                       >
-                        {isSelected ? 'Active Route' : (r.feasibilityResult && !r.feasibilityResult.feasible ? 'Infeasible' : 'Apply')}
+                        {!isFeasible ? 'Infeasible' : (isCurrentlyActive ? 'Active Route' : 'Apply')}
                       </button>
                     </td>
                   </tr>

@@ -25,7 +25,7 @@ export function evaluateRouteOverTime(route: RouteOption): TimeDependentRiskResu
     const timeAccurateSic = getSicAt(wp.lat, wp.lon, forecastDayFloat);
     wp.iceConcentrationPct = Math.round(timeAccurateSic);
 
-    const forecastConfidencePct = Math.max(65, 95 - (forecastDayFloat * (30 / 7)));
+    const forecastConfidencePct = Math.max(90, Math.round(98 - (forecastDayFloat * 0.8)));
 
     results.push({
       waypointIndex: idx,

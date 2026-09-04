@@ -58,11 +58,10 @@ export function computeSafetyScore(route: RouteOption, vessel: VesselProfile, ic
   const maxLat = Math.max(...route.waypoints.map(wp => Math.abs(wp.lat)));
   const weatherRisk = Math.min(100, Math.max(0, (maxLat - 50) * 2)); 
 
-  // 6. Confidence Risk (uncertainty over time)
-  let overallConfidencePct = 95; // Default high confidence for day 0 short routes
+  let overallConfidencePct = 96; // Default high confidence for day 0 short routes
   if (route.timeDependentResults && route.timeDependentResults.length > 0) {
     const avgConf = route.timeDependentResults.reduce((acc, r) => acc + r.forecastConfidencePct, 0) / route.timeDependentResults.length;
-    overallConfidencePct = avgConf;
+    overallConfidencePct = Math.round(avgConf);
   }
   const confidenceRisk = Math.max(0, 100 - overallConfidencePct);
 

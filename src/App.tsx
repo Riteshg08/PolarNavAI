@@ -11,7 +11,7 @@ import { IcebergTrackerPanel } from './components/IcebergTrackerPanel';
 import { RouteAnalyticsModal } from './components/RouteAnalyticsModal';
 import { AIModelMetricsPanel } from './components/AIModelMetricsPanel';
 import { MissionAssessmentPanel } from './components/MissionAssessmentPanel';
-import { ShieldCheck, Fuel, Clock, Compass, Anchor, Leaf, Ship, Activity } from 'lucide-react';
+import { ShieldCheck, Fuel, Clock, Compass, Anchor, Leaf, Ship, Activity, AlertOctagon } from 'lucide-react';
 import { generateMissionAssessment } from './explain/missionAssessment';
 
 import { predictTrajectory } from './models/icebergDrift';
@@ -57,10 +57,24 @@ export const App: React.FC = () => {
   const [showAIModelModal, setShowAIModelModal] = useState<boolean>(false);
   const [showMissionModal, setShowMissionModal] = useState<boolean>(false);
 
-  const activeRoute = routes.find((r) => r.id === activeRouteId) || routes[0];
   const activeVessel = VESSELS.find((v) => v.id === params.selectedVesselId) || VESSELS[0];
   const originStation = STATIONS.find((s) => s.id === params.originStationId) || STATIONS[0];
   const destStation = STATIONS.find((s) => s.id === params.destinationStationId) || STATIONS[1];
+
+  // Feasibility Check & Effective Active Route Selection
+  const noFeasibleRouteAvailable = useMemo(() => {
+    return routes.length > 0 && routes.every(r => r.feasibilityResult && !r.feasibilityResult.feasible);
+  }, [routes]);
+
+  const effectiveActiveRoute = useMemo(() => {
+    const currentFeasible = routes.find(r => r.id === activeRouteId && r.feasibilityResult?.feasible);
+    if (currentFeasible) return currentFeasible;
+    const firstFeasible = routes.find(r => r.feasibilityResult?.feasible);
+    if (firstFeasible) return firstFeasible;
+    return routes.find(r => r.id === activeRouteId) || routes[0];
+  }, [routes, activeRouteId]);
+
+  const activeRoute = effectiveActiveRoute;
 
   const missionAssessment = useMemo(() => {
     return generateMissionAssessment(
@@ -90,6 +104,14 @@ export const App: React.FC = () => {
         onOpenMission={() => setShowMissionModal(true)}
         activeRouteTitle={activeRoute.title}
       />
+
+      {/* No Feasible Route Alert Banner */}
+      {noFeasibleRouteAvailable && (
+        <div style={{ background: 'rgba(255, 75, 92, 0.95)', color: '#ffffff', padding: '8px 16px', fontSize: '0.82rem', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', zIndex: 100, boxShadow: '0 2px 10px rgba(255, 75, 92, 0.4)' }}>
+          <AlertOctagon size={16} />
+          <span>NO FEASIBLE ROUTE AVAILABLE for {activeVessel.name} [{activeVessel.polarClass}] — All route options exceed safe ice-breaking capacity under Day +{params.forecastDay} sea-ice conditions.</span>
+        </div>
+      )}
 
       {/* Main Content (Sidebar + Map Canvas) */}
       <div className="main-content">
@@ -167,16 +189,6 @@ export const App: React.FC = () => {
           </div>
           <div className="telemetry-val green">
             {activeRoute.fuelConsumedTons} <span className="unit">Tons MGO</span>
-          </div>
-        </div>
-
-        <div className="telemetry-card">
-          <div className="telemetry-header">
-            <Leaf size={13} className="telemetry-icon green" />
-            <span className="telemetry-label">CO2 Saved</span>
-          </div>
-          <div className="telemetry-val green">
-            +{activeRoute.co2SavedTons} <span className="unit">Tons CO2</span>
           </div>
         </div>
 
