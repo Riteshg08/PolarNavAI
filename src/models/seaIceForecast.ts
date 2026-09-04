@@ -36,8 +36,15 @@ export function getForecastGrid(day: number): {
   confidencePct: number; 
   metadata: DatasetMetadata 
 } {
-  // Confidence decreases from ~95% at day 0 to ~65% at day 7
-  const confidencePct = Math.max(65, 95 - (day * (30 / 7)));
+  // Confidence decreases from ~95% at day 0 to ~65% at day 7, then slower decay to ~42% at day 21
+  let confidencePct: number;
+  if (day <= 7) {
+    confidencePct = 95 - (day * (30 / 7));
+  } else {
+    // Slower logarithmic decay beyond day 7
+    confidencePct = 65 - ((day - 7) * 1.6);
+  }
+  confidencePct = Math.max(40, confidencePct);
   
   // Generate a sparse grid for the Antarctic region
   const grid = [];

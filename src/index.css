@@ -944,3 +944,32 @@ input, select {
   font-weight: 700;
   font-size: 0.58rem;
 }
+
+/* Arrived state for vessel */
+.vessel-pulse-ring.arrived {
+  border-color: rgba(56, 239, 125, 0.7);
+  background: rgba(56, 239, 125, 0.15);
+  animation: vesselPulseArrived 2.5s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+}
+
+@keyframes vesselPulseArrived {
+  0% { transform: scale(0.5); opacity: 1; }
+  100% { transform: scale(2.2); opacity: 0; }
+}
+
+.vessel-icon-wrapper:has(+ .vessel-hud-badge .vessel-dot.arrived) {
+  border-color: #38ef7d;
+  box-shadow: 0 0 16px rgba(56, 239, 125, 0.4);
+  filter: drop-shadow(0 0 10px #38ef7d);
+}
+
+.vessel-dot.arrived {
+  background: #38ef7d;
+  box-shadow: 0 0 10px #38ef7d;
+  animation: arrivedBlink 1.5s ease-in-out infinite;
+}
+
+@keyframes arrivedBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}

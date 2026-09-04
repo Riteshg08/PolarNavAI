@@ -167,6 +167,7 @@ export const PolarMapCanvas: React.FC<PolarMapCanvasProps> = ({
 
     const totalVoyageDays = activeRoute.totalTimeHours / 24;
     const vesselProgress = Math.min(forecastDay / Math.max(0.1, totalVoyageDays), 1);
+    const arrived = vesselProgress >= 1.0;
 
     const idxFloat = vesselProgress * (activeRoute.waypoints.length - 1);
     const currIdx = Math.floor(idxFloat);
@@ -196,7 +197,9 @@ export const PolarMapCanvas: React.FC<PolarMapCanvasProps> = ({
       speedKnots: wp1.speedKnots || 12,
       sicPct: Math.round(wp1.iceConcentrationPct || 0),
       vesselName: vesselProfile.name.split(' ')[1] || 'Bharati',
-      polarClass: vesselProfile.polarClass
+      polarClass: vesselProfile.polarClass,
+      arrived,
+      progressPct: Math.round(vesselProgress * 100)
     };
   }, [activeRoute, forecastDay, dimensions, viewport])();
 
@@ -965,7 +968,7 @@ export const PolarMapCanvas: React.FC<PolarMapCanvasProps> = ({
       }
     });
 
-    // 5. Draw Vessel Progress
+    // 5. Draw Vessel Progress Trail + Position
     if (activeRoute && activeRoute.waypoints.length > 0) {
       const totalVoyageDays = activeRoute.totalTimeHours / 24;
       const vesselProgress = Math.min(forecastDay / Math.max(0.1, totalVoyageDays), 1);
@@ -982,20 +985,61 @@ export const PolarMapCanvas: React.FC<PolarMapCanvasProps> = ({
       const vesselLon = wp1.lon + subT * (wp2.lon - wp1.lon);
       const { x: vx, y: vy } = latLonToCanvas(vesselLat, vesselLon, width, height, viewport);
 
-      ctx.beginPath();
-      ctx.arc(vx, vy, 4, 0, 2 * Math.PI);
-      ctx.fillStyle = '#00f2fe';
-      ctx.fill();
+      // Draw traversed trail (bright solid cyan for completed portion)
+      if (currIdx > 0) {
+        ctx.beginPath();
+        const firstWp = activeRoute.waypoints[0];
+        const firstPt = latLonToCanvas(firstWp.lat, firstWp.lon, width, height, viewport);
+        ctx.moveTo(firstPt.x, firstPt.y);
+        for (let ti = 1; ti <= currIdx; ti++) {
+          const twp = activeRoute.waypoints[ti];
+          const tpt = latLonToCanvas(twp.lat, twp.lon, width, height, viewport);
+          ctx.lineTo(tpt.x, tpt.y);
+        }
+        ctx.lineTo(vx, vy);
+        ctx.strokeStyle = 'rgba(0, 242, 254, 0.7)';
+        ctx.lineWidth = 3.5 / viewport.zoom;
+        ctx.setLineDash([]);
+        ctx.stroke();
+      }
 
+      // Draw remaining route (dimmer dashed)
+      if (currIdx < activeRoute.waypoints.length - 1) {
+        ctx.beginPath();
+        ctx.moveTo(vx, vy);
+        for (let ri = nextIdx; ri < activeRoute.waypoints.length; ri++) {
+          const rwp = activeRoute.waypoints[ri];
+          const rpt = latLonToCanvas(rwp.lat, rwp.lon, width, height, viewport);
+          ctx.lineTo(rpt.x, rpt.y);
+        }
+        ctx.strokeStyle = 'rgba(0, 242, 254, 0.25)';
+        ctx.lineWidth = 2 / viewport.zoom;
+        ctx.setLineDash([6, 4]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+
+      // Draw ship position dot
+      ctx.beginPath();
+      ctx.arc(vx, vy, 5, 0, 2 * Math.PI);
+      ctx.fillStyle = vesselProgress >= 1.0 ? '#38ef7d' : '#00f2fe';
+      ctx.fill();
       ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      // Outer glow ring
+      ctx.beginPath();
+      ctx.arc(vx, vy, 10, 0, 2 * Math.PI);
+      ctx.strokeStyle = vesselProgress >= 1.0 ? 'rgba(56, 239, 125, 0.3)' : 'rgba(0, 242, 254, 0.3)';
       ctx.lineWidth = 1;
       ctx.stroke();
 
       labelsToDraw.push({
-        text: 'R/V BHARATI',
+        text: vesselProgress >= 1.0 ? 'ARRIVED' : 'R/V BHARATI',
         tx: vx + 10,
         ty: vy + 4,
-        color: '#38ef7d',
+        color: vesselProgress >= 1.0 ? '#38ef7d' : '#38ef7d',
         font: 'bold 10px JetBrains Mono'
       });
     }
@@ -1288,10 +1332,6 @@ export const PolarMapCanvas: React.FC<PolarMapCanvasProps> = ({
       {/* Top Left Status Overlay */}
       <div className="map-overlay-top-left">
         <div className="map-card-sm">
-          <div className="map-card-title">Antarctic Projection</div>
-          <div className="map-card-value">Stereographic • 70.0° S</div>
-        </div>
-        <div className="map-card-sm">
           <div className="map-card-title">Active AI Route</div>
           <div className="map-card-value" style={{ color: '#00f2fe' }}>
             {activeRoute?.title}
@@ -1367,31 +1407,43 @@ export const PolarMapCanvas: React.FC<PolarMapCanvasProps> = ({
           }}
         >
           {/* Radar Pulse Ring */}
-          <div className="vessel-pulse-ring" />
+          <div className={`vessel-pulse-ring ${vesselNavInfo.arrived ? 'arrived' : ''}`} />
           
           {/* Forward Heading Beam Cone */}
-          <div 
-            className="vessel-heading-cone" 
-            style={{ transform: `rotate(${vesselNavInfo.headingDeg}deg)` }} 
-          />
+          {!vesselNavInfo.arrived && (
+            <div 
+              className="vessel-heading-cone" 
+              style={{ transform: `rotate(${vesselNavInfo.headingDeg}deg)` }} 
+            />
+          )}
 
           {/* Lucide Ship Icon */}
           <div 
             className="vessel-icon-wrapper"
-            style={{ transform: `rotate(${vesselNavInfo.headingDeg}deg)` }}
+            style={{ transform: vesselNavInfo.arrived ? 'none' : `rotate(${vesselNavInfo.headingDeg}deg)` }}
           >
-            <Ship size={20} color="#00f2fe" fill="rgba(0, 242, 254, 0.25)" />
+            <Ship size={20} color={vesselNavInfo.arrived ? '#38ef7d' : '#00f2fe'} fill={vesselNavInfo.arrived ? 'rgba(56, 239, 125, 0.25)' : 'rgba(0, 242, 254, 0.25)'} />
           </div>
 
           {/* Live Telemetry Badge */}
           <div className="vessel-hud-badge">
             <div className="vessel-title">
-              <span className="vessel-dot" /> R/V {vesselNavInfo.vesselName} [{vesselNavInfo.polarClass}]
+              <span className={`vessel-dot ${vesselNavInfo.arrived ? 'arrived' : ''}`} /> R/V {vesselNavInfo.vesselName} [{vesselNavInfo.polarClass}]
             </div>
             <div className="vessel-stats">
-              <span>{vesselNavInfo.speedKnots.toFixed(1)} kts</span> • 
-              <span>{vesselNavInfo.sicPct}% Ice</span> • 
-              <span className="nav-tag">LIVE NAV</span>
+              {vesselNavInfo.arrived ? (
+                <>
+                  <span style={{ color: '#38ef7d', fontWeight: 700 }}>✓ ARRIVED</span> • 
+                  <span>{vesselNavInfo.progressPct}%</span>
+                </>
+              ) : (
+                <>
+                  <span>{vesselNavInfo.speedKnots.toFixed(1)} kts</span> • 
+                  <span>{vesselNavInfo.sicPct}% Ice</span> • 
+                  <span>{vesselNavInfo.progressPct}%</span> • 
+                  <span className="nav-tag">LIVE NAV</span>
+                </>
+              )}
             </div>
           </div>
         </div>

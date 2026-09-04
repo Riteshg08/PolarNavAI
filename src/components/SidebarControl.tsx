@@ -19,6 +19,7 @@ interface SidebarControlProps {
   showVectors: boolean;
   onToggleVectors: () => void;
   onRunOptimization: () => void;
+  totalVoyageDays: number;
 }
 
 export const SidebarControl: React.FC<SidebarControlProps> = ({
@@ -30,7 +31,8 @@ export const SidebarControl: React.FC<SidebarControlProps> = ({
   onToggleHeatmap,
   showVectors,
   onToggleVectors,
-  onRunOptimization
+  onRunOptimization,
+  totalVoyageDays
 }) => {
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [isAutoPlaying, setIsAutoPlaying] = useState(false);
@@ -42,7 +44,7 @@ export const SidebarControl: React.FC<SidebarControlProps> = ({
     metrics: true
   });
 
-  // Autoplay: cycle forecast days 0→7 every 1.5s
+  // Autoplay: cycle forecast days 0→totalVoyageDays, then stop
   const paramsRef = useRef(params);
   paramsRef.current = params;
 
@@ -50,7 +52,13 @@ export const SidebarControl: React.FC<SidebarControlProps> = ({
     if (isAutoPlaying) {
       autoPlayRef.current = setInterval(() => {
         const current = paramsRef.current;
-        const nextDay = current.forecastDay >= 7 ? 0 : current.forecastDay + 1;
+        const maxDay = Math.max(7, totalVoyageDays);
+        if (current.forecastDay >= maxDay) {
+          // Voyage complete — stop autoplay
+          setIsAutoPlaying(false);
+          return;
+        }
+        const nextDay = current.forecastDay + 1;
         onChangeParams({ ...current, forecastDay: nextDay });
       }, 1500);
     } else {
@@ -59,7 +67,7 @@ export const SidebarControl: React.FC<SidebarControlProps> = ({
     return () => {
       if (autoPlayRef.current) clearInterval(autoPlayRef.current);
     };
-  }, [isAutoPlaying]);
+  }, [isAutoPlaying, totalVoyageDays]);
 
   const toggleSection = (section: keyof typeof expandedSections) => {
     setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
@@ -231,7 +239,7 @@ export const SidebarControl: React.FC<SidebarControlProps> = ({
                 <input
                   type="range"
                   min={0}
-                  max={7}
+                  max={Math.max(7, totalVoyageDays)}
                   step={1}
                   value={params.forecastDay}
                   className="range-slider"
@@ -240,12 +248,18 @@ export const SidebarControl: React.FC<SidebarControlProps> = ({
                   }
                 />
                 <span className="slider-val">
-                  {params.forecastDay === 0 ? 'Now' : `+${params.forecastDay}d`}
+                  {params.forecastDay === 0 ? 'Now' : `Day ${params.forecastDay}/${Math.max(7, totalVoyageDays)}`}
                 </span>
               </div>
               <div className="slider-container" style={{ marginTop: '-4px' }}>
                 <div className="slider-ticks" style={{ flex: 1, width: 'auto', marginTop: 0 }}>
-                  <span>0</span><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span>
+                  {Array.from({ length: Math.min(Math.max(7, totalVoyageDays) + 1, 22) }, (_, i) => {
+                    const maxDay = Math.max(7, totalVoyageDays);
+                    // Show fewer tick labels for long voyages
+                    if (maxDay > 14 && i % 3 !== 0 && i !== maxDay) return <span key={i}></span>;
+                    if (maxDay > 7 && maxDay <= 14 && i % 2 !== 0 && i !== maxDay) return <span key={i}></span>;
+                    return <span key={i}>{i}</span>;
+                  })}
                 </div>
                 <span className="slider-val" style={{ visibility: 'hidden' }}>
                   {params.forecastDay === 0 ? 'Now' : `+${params.forecastDay}d`}
@@ -254,14 +268,25 @@ export const SidebarControl: React.FC<SidebarControlProps> = ({
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '10px' }}>
                 <button
                   className="autoplay-btn"
-                  onClick={() => setIsAutoPlaying(prev => !prev)}
-                  title={isAutoPlaying ? 'Pause autoplay' : 'Play forecast animation'}
+                  onClick={() => {
+                    if (params.forecastDay >= Math.max(7, totalVoyageDays)) {
+                      // Reset to day 0 and start again
+                      onChangeParams({ ...params, forecastDay: 0 });
+                    }
+                    setIsAutoPlaying(prev => !prev);
+                  }}
+                  title={isAutoPlaying ? 'Pause simulation' : 'Simulate voyage'}
                 >
                   {isAutoPlaying ? <Pause size={14} /> : <Play size={14} />}
-                  <span>{isAutoPlaying ? 'Pause' : 'Autoplay'}</span>
+                  <span>{isAutoPlaying ? 'Pause' : params.forecastDay >= Math.max(7, totalVoyageDays) ? 'Restart' : 'Simulate Voyage'}</span>
                 </button>
                 <span style={{ fontSize: '0.72rem', color: '#8b9bb4' }}>
-                  {isAutoPlaying ? `Playing Day +${params.forecastDay}...` : `Simulating Day +${params.forecastDay}`}
+                  {params.forecastDay >= Math.max(7, totalVoyageDays) 
+                    ? '✓ Voyage Complete' 
+                    : isAutoPlaying 
+                      ? `Simulating Day ${params.forecastDay}/${Math.max(7, totalVoyageDays)}...` 
+                      : `Day ${params.forecastDay} of ${Math.max(7, totalVoyageDays)}`
+                  }
                 </span>
               </div>
             </>

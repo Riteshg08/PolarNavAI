@@ -112,7 +112,7 @@ export interface RouteOption {
 }
 
 export interface SeaIceForecastParams {
-  forecastDay: number; // 0 to 7 days ahead
+  forecastDay: number; // 0 to 21 days (full voyage simulation)
   iceConcentrationThreshold: number; // Max concentration allowed in planner %
   optimizationWeight: 'BALANCED' | 'MIN_FUEL' | 'MAX_SAFETY' | 'FASTEST';
   selectedVesselId: string;

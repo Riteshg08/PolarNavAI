@@ -1,4 +1,6 @@
 import { Iceberg } from '../types';
+
+export const MAX_FORECAST_DAYS = 21;
 import { simulateIcebergDriftRK4 } from '../utils/polarPhysics';
 import { fetchERA5WindGrid } from '../data/adapters/era5Adapter';
 import { fetchHycomOceanGrid } from '../data/adapters/hycomAdapter';

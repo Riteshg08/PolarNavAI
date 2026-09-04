@@ -14,14 +14,14 @@ import { MissionAssessmentPanel } from './components/MissionAssessmentPanel';
 import { ShieldCheck, Fuel, Clock, Compass, Anchor, Leaf, Ship, Activity, AlertOctagon } from 'lucide-react';
 import { generateMissionAssessment } from './explain/missionAssessment';
 
-import { predictTrajectory } from './models/icebergDrift';
+import { predictTrajectory, MAX_FORECAST_DAYS } from './models/icebergDrift';
 
 export const App: React.FC = () => {
   // Compute dynamic iceberg trajectories
   const dynamicIcebergs = useMemo(() => {
     return ICEBERGS.map(ib => ({
       ...ib,
-      predictedTrajectory: predictTrajectory(ib, 7)
+      predictedTrajectory: predictTrajectory(ib, MAX_FORECAST_DAYS)
     }));
   }, []);
 
@@ -125,6 +125,7 @@ export const App: React.FC = () => {
           showVectors={showVectors}
           onToggleVectors={() => setShowVectors(!showVectors)}
           onRunOptimization={handleRunOptimization}
+          totalVoyageDays={Math.ceil(activeRoute.totalTimeHours / 24)}
         />
 
         <PolarMapCanvas
