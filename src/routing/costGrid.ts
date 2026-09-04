@@ -87,12 +87,18 @@ export function getCellCost(
     const dist = getDistanceNmi(toNode.lat, toNode.lon, pos.lat, pos.lon);
     if (dist < minIcebergDist) minIcebergDist = dist;
     
+    // Hard Clearance Constraint
+    if (dist < 20) { // 20 nmi is mandatory hard clearance
+      return Infinity; // Completely impassable
+    }
+
     // Calculate required clearance based on iceberg size (1 nmi = 1.852 km)
     const icebergRadiusNmi = (iceberg.lengthKm / 2) / 1.852;
-    const clearanceNmi = icebergRadiusNmi + 25; // 25 nmi safety buffer
+    // Generous soft safety buffer (40 nmi) so AI routes detour smoothly and visibly in advance
+    const clearanceNmi = Math.max(35, icebergRadiusNmi + 40); 
     
     if (dist < clearanceNmi) {
-      icebergPenalty += Math.pow((clearanceNmi + 5) - dist, 3) * 100; // Massive penalty
+      icebergPenalty += Math.pow((clearanceNmi + 10) - dist, 2.5) * 300; // Strong penalty gradient
     }
   }
 

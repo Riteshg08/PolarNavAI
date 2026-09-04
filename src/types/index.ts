@@ -25,7 +25,7 @@ export interface Iceberg {
   hazardLevel: 'CRITICAL' | 'HIGH' | 'MODERATE' | 'LOW';
   trajectory: { day: number; lat: number; lon: number }[];
   lastObserved: string;
-  source: 'Sentinel-1 SAR' | 'BYU Scatterometer' | 'US NIC';
+  source: 'Sentinel-1 SAR' | 'BYU Scatterometer' | 'US NIC' | 'SAR';
 }
 
 export interface StationLocation {

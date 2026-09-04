@@ -24,8 +24,7 @@ function getInterpolatedIcebergPos(iceberg: Iceberg, dayFloat: number): { lat: n
 
   return {
     lat: p1.lat + t * (p2.lat - p1.lat),
-    lon: p1.lon + t * (p2.lon - p1.lon),
-    uncertaintyRadiusKm: p1.uncertaintyRadiusKm + t * (p2.uncertaintyRadiusKm - p1.uncertaintyRadiusKm)
+    lon: p1.lon + t * (p2.lon - p1.lon)
   };
 }
 
@@ -51,7 +50,7 @@ export function evaluateRouteClearance(route: RouteOption, icebergs: Iceberg[]):
     for (const iceberg of icebergs) {
       const icePos = getInterpolatedIcebergPos(iceberg, dayFloat);
       const distNmi = getDistanceNmi(vesselLat, vesselLon, icePos.lat, icePos.lon);
-      const uncertaintyNmi = (icePos.uncertaintyRadiusKm || 0) / 1.852;
+      const uncertaintyNmi = dayFloat * 0.5;
       
       // Effective distance is the distance minus the iceberg's positional uncertainty
       const effectiveDistNmi = Math.max(0, distNmi - uncertaintyNmi);

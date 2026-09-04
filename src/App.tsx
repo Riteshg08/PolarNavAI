@@ -11,7 +11,7 @@ import { IcebergTrackerPanel } from './components/IcebergTrackerPanel';
 import { RouteAnalyticsModal } from './components/RouteAnalyticsModal';
 import { AIModelMetricsPanel } from './components/AIModelMetricsPanel';
 import { MissionAssessmentPanel } from './components/MissionAssessmentPanel';
-import { ShieldCheck, Fuel, Clock, Compass, Anchor, Leaf } from 'lucide-react';
+import { ShieldCheck, Fuel, Clock, Compass, Anchor, Leaf, Ship, Activity } from 'lucide-react';
 import { generateMissionAssessment } from './explain/missionAssessment';
 
 import { predictTrajectory } from './models/icebergDrift';
@@ -121,69 +121,88 @@ export const App: React.FC = () => {
       </div>
 
       {/* Telemetry Footer Bar */}
-      <footer className="telemetry-bar" style={{ display: 'flex', flexWrap: 'wrap', gap: '24px', padding: '12px 24px', justifyContent: 'flex-start' }}>
-        <div className="telemetry-item">
-          <span className="telemetry-label">Active Expedition Track</span>
+      <footer className="telemetry-bar">
+        <div className="telemetry-card">
+          <div className="telemetry-header">
+            <Anchor size={13} className="telemetry-icon cyan" />
+            <span className="telemetry-label">Active Expedition Track</span>
+          </div>
           <div className="telemetry-val cyan">
-            <Anchor size={14} />
             {originStation.name.split(' ')[0]} → {destStation.name.split(' ')[0]}
           </div>
         </div>
 
-        <div className="telemetry-item">
-          <span className="telemetry-label">Vessel & Ice Class</span>
+        <div className="telemetry-card">
+          <div className="telemetry-header">
+            <Ship size={13} className="telemetry-icon blue" />
+            <span className="telemetry-label">Vessel & Class</span>
+          </div>
           <div className="telemetry-val">
-            {activeVessel.name} [{activeVessel.polarClass}]
+            {activeVessel.name.replace('Expedition Icebreaker', '')} <span className="class-badge">{activeVessel.polarClass}</span>
           </div>
         </div>
 
-        <div className="telemetry-item">
-          <span className="telemetry-label">Total Distance</span>
-          <div className="telemetry-val">{activeRoute.totalDistanceNmi} Nmi</div>
+        <div className="telemetry-card">
+          <div className="telemetry-header">
+            <Compass size={13} className="telemetry-icon cyan" />
+            <span className="telemetry-label">Total Distance</span>
+          </div>
+          <div className="telemetry-val">{activeRoute.totalDistanceNmi} <span className="unit">nmi</span></div>
         </div>
 
-        <div className="telemetry-item">
-          <span className="telemetry-label">Est. Voyage Time</span>
+        <div className="telemetry-card">
+          <div className="telemetry-header">
+            <Clock size={13} className="telemetry-icon amber" />
+            <span className="telemetry-label">Est. Voyage Time</span>
+          </div>
           <div className="telemetry-val">
-            <Clock size={14} />
-            {activeRoute.totalTimeHours} hrs ({(activeRoute.totalTimeHours / 24).toFixed(1)} days)
+            {activeRoute.totalTimeHours} <span className="unit">hrs</span> <span className="sub-val">({(activeRoute.totalTimeHours / 24).toFixed(1)}d)</span>
           </div>
         </div>
 
-        <div className="telemetry-item">
-          <span className="telemetry-label">Est. Fuel Burn</span>
+        <div className="telemetry-card">
+          <div className="telemetry-header">
+            <Fuel size={13} className="telemetry-icon green" />
+            <span className="telemetry-label">Est. Fuel Burn</span>
+          </div>
           <div className="telemetry-val green">
-            <Fuel size={14} />
-            {activeRoute.fuelConsumedTons} Tons MGO
+            {activeRoute.fuelConsumedTons} <span className="unit">Tons MGO</span>
           </div>
         </div>
 
-        <div className="telemetry-item">
-          <span className="telemetry-label">CO2 Reduction</span>
+        <div className="telemetry-card">
+          <div className="telemetry-header">
+            <Leaf size={13} className="telemetry-icon green" />
+            <span className="telemetry-label">CO2 Saved</span>
+          </div>
           <div className="telemetry-val green">
-            <Leaf size={14} />
-            {activeRoute.co2SavedTons} Tons CO2 Saved
+            +{activeRoute.co2SavedTons} <span className="unit">Tons CO2</span>
           </div>
         </div>
 
-        <div className="telemetry-item">
-          <span className="telemetry-label">Besetment Safety Index</span>
-          <div className="telemetry-val cyan">
-            <ShieldCheck size={16} />
-            {activeRoute.safetyScore.total} / 100
+        <div className="telemetry-card highlight">
+          <div className="telemetry-header">
+            <ShieldCheck size={13} className="telemetry-icon cyan" />
+            <span className="telemetry-label">Safety Index</span>
           </div>
-          <div style={{ fontSize: '0.65rem', color: '#8b9bb4', marginTop: '4px', whiteSpace: 'nowrap' }}>
-            Ice: {activeRoute.safetyScore.seaIceRisk} | Berg: {activeRoute.safetyScore.icebergRisk} | Wx: {activeRoute.safetyScore.weatherRisk} | Ship: {activeRoute.safetyScore.vesselRisk}
+          <div className="telemetry-val cyan" style={{ color: activeRoute.safetyScore.total > 80 ? '#38ef7d' : '#ffb703' }}>
+            {activeRoute.safetyScore.total}<span className="unit">/100</span>
+          </div>
+          <div className="telemetry-subtext">
+            Ice:{activeRoute.safetyScore.seaIceRisk} • Berg:{activeRoute.safetyScore.icebergRisk} • Wx:{activeRoute.safetyScore.weatherRisk}
           </div>
         </div>
 
-        <div className="telemetry-item">
-          <span className="telemetry-label">Forecast Confidence</span>
+        <div className="telemetry-card">
+          <div className="telemetry-header">
+            <Activity size={13} className="telemetry-icon green" />
+            <span className="telemetry-label">Forecast Confidence</span>
+          </div>
           <div className="telemetry-val" style={{ color: activeRoute.safetyScore.overallConfidencePct > 80 ? '#38ef7d' : '#ffb703' }}>
             {activeRoute.safetyScore.overallConfidencePct}%
           </div>
-          <div style={{ fontSize: '0.65rem', color: '#8b9bb4', marginTop: '4px', fontStyle: 'italic', whiteSpace: 'nowrap' }}>
-            Based on temporal trajectory uncertainty
+          <div className="telemetry-subtext">
+            PINN Drift Model
           </div>
         </div>
       </footer>

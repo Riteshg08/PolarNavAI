@@ -440,54 +440,125 @@ input, select {
 
 /* Telemetry Footer Bar */
 .telemetry-bar {
+  height: 64px;
   min-height: 64px;
-  height: auto;
-  background: rgba(8, 17, 32, 0.9);
-  backdrop-filter: blur(12px);
-  border-top: 1px solid var(--border-glass);
+  background: rgba(6, 14, 26, 0.92);
+  backdrop-filter: blur(16px);
+  border-top: 1px solid rgba(0, 242, 254, 0.2);
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05);
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 12px 24px;
+  gap: 10px;
+  padding: 6px 16px;
   z-index: 40;
-  flex-wrap: wrap;
-  gap: 16px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
 }
 
-.telemetry-group {
-  display: flex;
-  align-items: flex-start;
-  flex-wrap: wrap;
-  gap: 24px;
+.telemetry-bar::-webkit-scrollbar {
+  height: 3px;
+}
+.telemetry-bar::-webkit-scrollbar-thumb {
+  background: rgba(0, 242, 254, 0.3);
+  border-radius: 3px;
 }
 
-.telemetry-item {
+.telemetry-card {
+  flex: 1;
+  min-width: 140px;
+  max-height: 52px;
+  background: rgba(15, 23, 42, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 6px 12px;
   display: flex;
   flex-direction: column;
+  justify-content: center;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
 }
 
+.telemetry-card:hover {
+  background: rgba(15, 23, 42, 0.85);
+  border-color: rgba(0, 242, 254, 0.3);
+  box-shadow: 0 2px 10px rgba(0, 242, 254, 0.1);
+}
+
+.telemetry-card.highlight {
+  background: rgba(0, 242, 254, 0.06);
+  border-color: rgba(0, 242, 254, 0.25);
+}
+
+.telemetry-header {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 2px;
+}
+
+.telemetry-icon {
+  flex-shrink: 0;
+}
+.telemetry-icon.cyan { color: #00f2fe; }
+.telemetry-icon.blue { color: #38bdf8; }
+.telemetry-icon.green { color: #38ef7d; }
+.telemetry-icon.amber { color: #ffb703; }
+
 .telemetry-label {
-  font-size: 0.68rem;
-  color: var(--text-muted);
+  font-size: 0.62rem;
+  color: #8b9bb4;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  font-weight: 600;
   white-space: nowrap;
 }
 
 .telemetry-val {
   font-family: var(--font-mono);
-  font-size: 0.95rem;
-  font-weight: 600;
-  color: var(--text-main);
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #f8fafc;
   display: flex;
-  align-items: center;
-  gap: 6px;
+  align-items: baseline;
+  gap: 4px;
+  white-space: nowrap;
+  line-height: 1.1;
+}
+
+.telemetry-val.cyan { color: #00f2fe; }
+.telemetry-val.green { color: #38ef7d; }
+.telemetry-val.amber { color: #ffb703; }
+
+.telemetry-val .unit {
+  font-size: 0.68rem;
+  color: #94a3b8;
+  font-weight: 400;
+}
+
+.telemetry-val .sub-val {
+  font-size: 0.7rem;
+  color: #64748b;
+  font-weight: 400;
+}
+
+.telemetry-subtext {
+  font-size: 0.6rem;
+  color: #64748b;
+  margin-top: 1px;
   white-space: nowrap;
 }
 
-.telemetry-val.cyan { color: var(--primary-cyan); }
-.telemetry-val.green { color: var(--accent-green); }
-.telemetry-val.amber { color: var(--accent-amber); }
+.class-badge {
+  font-size: 0.65rem;
+  background: rgba(0, 242, 254, 0.15);
+  color: #00f2fe;
+  border: 1px solid rgba(0, 242, 254, 0.3);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  margin-left: 4px;
+}
 
 /* Modal Styling */
 .modal-backdrop {
@@ -739,4 +810,137 @@ input, select {
   to {
     transform: rotate(360deg);
   }
+}
+
+/* Autoplay Button */
+.autoplay-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 14px;
+  background: rgba(0, 242, 254, 0.08);
+  border: 1px solid rgba(0, 242, 254, 0.25);
+  border-radius: 6px;
+  color: #00f2fe;
+  font-size: 0.72rem;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  letter-spacing: 0.03em;
+}
+
+.autoplay-btn:hover {
+  background: rgba(0, 242, 254, 0.15);
+  border-color: rgba(0, 242, 254, 0.5);
+  box-shadow: 0 0 12px rgba(0, 242, 254, 0.15);
+}
+
+.autoplay-btn:active {
+  transform: scale(0.96);
+}
+
+/* Live Vessel Overlay Styling */
+.live-ship-overlay {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.vessel-pulse-ring {
+  position: absolute;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(0, 242, 254, 0.7);
+  background: rgba(0, 242, 254, 0.15);
+  animation: vesselPulse 2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+}
+
+@keyframes vesselPulse {
+  0% {
+    transform: scale(0.5);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1.9);
+    opacity: 0;
+  }
+}
+
+.vessel-heading-cone {
+  position: absolute;
+  width: 0;
+  height: 0;
+  border-left: 14px solid transparent;
+  border-right: 14px solid transparent;
+  border-bottom: 40px solid rgba(0, 242, 254, 0.25);
+  top: -30px;
+  filter: blur(1px);
+  pointer-events: none;
+}
+
+.vessel-icon-wrapper {
+  z-index: 2;
+  filter: drop-shadow(0 0 10px #00f2fe);
+  transition: transform 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(3, 10, 22, 0.9);
+  padding: 6px;
+  border-radius: 50%;
+  border: 1.5px solid #00f2fe;
+  box-shadow: 0 0 16px rgba(0, 242, 254, 0.4);
+}
+
+.vessel-hud-badge {
+  position: absolute;
+  left: 32px;
+  top: -14px;
+  background: rgba(6, 14, 26, 0.94);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(0, 242, 254, 0.4);
+  border-radius: 6px;
+  padding: 5px 9px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+  white-space: nowrap;
+  pointer-events: auto;
+}
+
+.vessel-title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.vessel-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #38ef7d;
+  box-shadow: 0 0 6px #38ef7d;
+}
+
+.vessel-stats {
+  font-size: 0.63rem;
+  color: #94a3b8;
+  font-family: var(--font-mono);
+  margin-top: 2px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.nav-tag {
+  background: rgba(56, 239, 125, 0.15);
+  color: #38ef7d;
+  border: 1px solid rgba(56, 239, 125, 0.3);
+  padding: 0px 4px;
+  border-radius: 3px;
+  font-weight: 700;
+  font-size: 0.58rem;
 }

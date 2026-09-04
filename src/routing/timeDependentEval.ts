@@ -7,6 +7,7 @@ export interface TimeDependentRiskResult {
   forecastDayFloat: number;
   originalSicPct: number;
   timeAccurateSicPct: number;
+  forecastConfidencePct: number;
 }
 
 export function evaluateRouteOverTime(route: RouteOption): TimeDependentRiskResult[] {

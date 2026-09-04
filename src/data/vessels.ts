@@ -1,4 +1,4 @@
-import { VesselProfile } from '../../types';
+import { VesselProfile } from '../types';
 
 // Vessel Profiles
 export const VESSELS: VesselProfile[] = [

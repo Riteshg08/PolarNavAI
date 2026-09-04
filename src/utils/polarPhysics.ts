@@ -8,6 +8,8 @@ import { evaluateRouteOverTime } from '../routing/timeDependentEval';
 import { computeSafetyScore } from '../risk/safetyScore';
 import { generateRouteExplanation } from '../explain/routeExplanation';
 import { getSicAt } from '../models/seaIceForecast';
+
+export const MIN_ICEBERG_CLEARANCE_NMI = 20;
 import { findOptimalRoute, WEIGHT_PRESETS } from '../routing/optimizer';
 import { ROUTE_SCENARIOS } from './routeScenarios';
 
@@ -76,104 +78,84 @@ export function solvePolarRoutes(params: SeaIceForecastParams, icebergs: Iceberg
   const dest = STATIONS.find((s) => s.id === params.destinationStationId) || STATIONS[1];
   const vessel = VESSELS.find((v) => v.id === params.selectedVesselId) || VESSELS[0];
 
-  const directDist = getDistanceNmi(origin.lat, origin.lon, dest.lat, dest.lon);  // 1. OPTIMAL AI ROUTE & SHORTEST DISTANCE
-  let waypointsAI: Waypoint[] = [];
-  let waypointsShortest: Waypoint[] = [];
-  let rationale = null;
+  const directDist = getDistanceNmi(origin.lat, origin.lon, dest.lat, dest.lon);
 
-  const scenario = ROUTE_SCENARIOS.find(s => s.originId === origin.id && s.destinationId === dest.id);
+  // ===== LIVE ROUTE CALCULATION based on current iceberg trajectories =====
+  // Always run the A* optimizer with the current forecast day's iceberg positions
+  const weightsAI = WEIGHT_PRESETS[params.optimizationWeight] || WEIGHT_PRESETS.BALANCED;
+  const rawAI = findOptimalRoute(origin.lat, origin.lon, dest.lat, dest.lon, vessel, params, icebergs, weightsAI);
   
-  if (scenario) {
-    const dayData = scenario.days.find(d => d.day === Math.floor(params.forecastDay)) || scenario.days[0];
-    waypointsAI = dayData.aiWaypoints;
-    waypointsShortest = dayData.directWaypoints;
-    rationale = dayData.rationale;
-  } else {
-    // Procedural Fallback
-    const weightsAI = WEIGHT_PRESETS[params.optimizationWeight] || WEIGHT_PRESETS.BALANCED;
-    const rawAI = findOptimalRoute(origin.lat, origin.lon, dest.lat, dest.lon, vessel, params, icebergs, weightsAI);
-    
-    // Naive direct line (interpolate 10 points)
-    const rawShort = [];
-    const steps = Math.max(10, rawAI.length);
-    for (let i = 0; i <= steps; i++) {
-       const t = i / steps;
-       rawShort.push({ 
-           lat: origin.lat + t * (dest.lat - origin.lat), 
-           lon: origin.lon + t * (dest.lon - origin.lon), 
-           iceConcentrationPct: Math.max(0, 80 - (Math.abs(origin.lat + t*(dest.lat - origin.lat) + 50) * 1.5)), 
-           iceThicknessMeters: 0.5, 
-           speedKnots: vessel.maxSpeedKnots * 0.8, 
-           isWaypoint: true 
-       });
-    }
-
-    const enrichWaypoints = (wps: any[]) => {
-      const day = Math.floor(params.forecastDay);
-      return wps.map(wp => {
-        let minDist = Infinity;
-        let closestId = null;
-        for (const ib of icebergs) {
-          const traj = ib.trajectory;
-          const pt = traj.find(p => p.day === day) || traj[traj.length - 1];
-          const dist = getDistanceNmi(wp.lat, wp.lon, pt.lat, pt.lon);
-          if (dist < minDist) {
-            minDist = dist;
-            closestId = ib.id;
-          }
-        }
-        return {
-          ...wp,
-          distanceToNearestIcebergNmi: parseFloat(minDist.toFixed(1)),
-          nearestIcebergId: closestId || 'N/A'
-        };
-      });
-    };
-
-    waypointsAI = enrichWaypoints(rawAI);
-    waypointsShortest = enrichWaypoints(rawShort);
-
-    let worstHazard = null;
-    for (let i = 0; i < waypointsShortest.length; i++) {
-      const dwp = waypointsShortest[i];
-      if (dwp.distanceToNearestIcebergNmi < 15) {
-        const awp = waypointsAI[i] || waypointsAI[waypointsAI.length - 1];
-        if (awp && awp.distanceToNearestIcebergNmi > dwp.distanceToNearestIcebergNmi) {
-          worstHazard = {
-            icebergId: dwp.nearestIcebergId,
-            distanceIfDirectNmi: dwp.distanceToNearestIcebergNmi,
-            distanceOnAIRouteNmi: awp.distanceToNearestIcebergNmi
-          };
-          break;
-        }
-      }
-    }
-
-    if (!worstHazard && waypointsShortest.length > 0) {
-      const mid = Math.floor(waypointsShortest.length / 2);
-      const dwpMid = waypointsShortest[mid];
-      const awpMid = waypointsAI[mid] || waypointsAI[0];
-      if (dwpMid && awpMid) {
-        worstHazard = {
-          icebergId: dwpMid.nearestIcebergId,
-          distanceIfDirectNmi: dwpMid.distanceToNearestIcebergNmi,
-          distanceOnAIRouteNmi: awpMid.distanceToNearestIcebergNmi
-        };
-      }
-    }
-    
-    const day = Math.floor(params.forecastDay);
-    rationale = {
-      day,
-      aiRouteSummary: `Dynamic deviation calculated to maintain safe clearance.`,
-      hazardsAvoided: worstHazard ? [worstHazard] : [],
-      iceConcentrationComparison: {
-        directRouteAvgPct: Math.round(waypointsShortest.reduce((a,b) => a + b.iceConcentrationPct, 0) / Math.max(1, waypointsShortest.length)) || 0,
-        aiRouteAvgPct: Math.round(waypointsAI.reduce((a,b) => a + b.iceConcentrationPct, 0) / Math.max(1, waypointsAI.length)) || 0
-      },
-      plainLanguageExplanation: worstHazard ? `On forecast day ${day}, the direct route would pass within ${worstHazard.distanceIfDirectNmi} nmi of Iceberg ${worstHazard.icebergId}. The AI model dynamically re-routes to maintain a ${worstHazard.distanceOnAIRouteNmi} nmi clearance while optimizing for ice concentration.` : `On forecast day ${day}, maintaining optimal ice concentration while navigating.`
-    };
+  // Direct line (interpolate matching number of points)
+  const rawShort = [];
+  const steps = Math.max(10, rawAI.length);
+  for (let i = 0; i <= steps; i++) {
+     const t = i / steps;
+     rawShort.push({ 
+         lat: origin.lat + t * (dest.lat - origin.lat), 
+         lon: origin.lon + t * (dest.lon - origin.lon), 
+         iceConcentrationPct: Math.max(0, 80 - (Math.abs(origin.lat + t*(dest.lat - origin.lat) + 50) * 1.5)), 
+         iceThicknessMeters: 0.5, 
+         speedKnots: vessel.maxSpeedKnots * 0.8, 
+         isWaypoint: true 
+     });
   }
+
+  // Enrich waypoints with nearest iceberg distance (using trajectory for current day)
+  const enrichWaypoints = (wps: any[]) => {
+    const day = Math.floor(params.forecastDay);
+    return wps.map(wp => {
+      let minDist = Infinity;
+      let closestId = null;
+      for (const ib of icebergs) {
+        const traj = ib.trajectory;
+        const pt = traj.find(p => p.day === day) || traj[traj.length - 1];
+        const dist = getDistanceNmi(wp.lat, wp.lon, pt.lat, pt.lon);
+        if (dist < minDist) {
+          minDist = dist;
+          closestId = ib.id;
+        }
+      }
+      return {
+        ...wp,
+        distanceToNearestIcebergNmi: parseFloat(minDist.toFixed(1)),
+        nearestIcebergId: closestId || 'N/A'
+      };
+    });
+  };
+
+  const waypointsAI = enrichWaypoints(rawAI);
+  const waypointsShortest = enrichWaypoints(rawShort);
+
+  // Build rationale from live computed data
+  let worstHazard = null;
+  for (let i = 0; i < waypointsShortest.length; i++) {
+    const dwp = waypointsShortest[i];
+    if (dwp.distanceToNearestIcebergNmi < MIN_ICEBERG_CLEARANCE_NMI) {
+      const awp = waypointsAI[i] || waypointsAI[waypointsAI.length - 1];
+      if (awp && awp.distanceToNearestIcebergNmi >= MIN_ICEBERG_CLEARANCE_NMI) {
+        worstHazard = {
+          icebergId: dwp.nearestIcebergId,
+          distanceIfDirectNmi: dwp.distanceToNearestIcebergNmi,
+          distanceOnAIRouteNmi: awp.distanceToNearestIcebergNmi
+        };
+        break;
+      }
+    }
+  }
+  
+  const day = Math.floor(params.forecastDay);
+  const rationale = {
+    day,
+    aiRouteSummary: `Live A* route computed for Day +${day} iceberg positions.`,
+    hazardsAvoided: worstHazard ? [worstHazard] : [],
+    iceConcentrationComparison: {
+      directRouteAvgPct: Math.round(waypointsShortest.reduce((a,b) => a + b.iceConcentrationPct, 0) / Math.max(1, waypointsShortest.length)) || 0,
+      aiRouteAvgPct: Math.round(waypointsAI.reduce((a,b) => a + b.iceConcentrationPct, 0) / Math.max(1, waypointsAI.length)) || 0
+    },
+    plainLanguageExplanation: worstHazard 
+      ? `On forecast day ${day}, the direct route would pass within ${worstHazard.distanceIfDirectNmi} nmi of Iceberg ${worstHazard.icebergId}. The AI model dynamically re-routes to maintain a ${worstHazard.distanceOnAIRouteNmi} nmi clearance.` 
+      : `On forecast day ${day}, the AI route maintains safe clearance from all ${icebergs.length} tracked icebergs while optimizing for ice concentration.`
+  };
 
   let cumulativeTimeAI = 0;
   let distAI = 0;

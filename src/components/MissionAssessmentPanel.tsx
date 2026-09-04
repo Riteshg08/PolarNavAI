@@ -1,6 +1,6 @@
 import React from 'react';
-import { ShieldCheck, Anchor, Target, AlertTriangle, AlertCircle, Info, InfoIcon } from 'lucide-react';
 import { MissionAssessment } from '../explain/missionAssessment';
+import { ShieldAlert, ShieldCheck, AlertTriangle, X, Anchor, Compass, Clock, Fuel, CheckCircle, Info } from 'lucide-react';
 
 interface MissionAssessmentPanelProps {
   assessment: MissionAssessment;
@@ -8,160 +8,117 @@ interface MissionAssessmentPanelProps {
 }
 
 export const MissionAssessmentPanel: React.FC<MissionAssessmentPanelProps> = ({ assessment, onClose }) => {
-  const getStatusColor = (status: 'FEASIBLE' | 'CAUTION' | 'UNSAFE') => {
-    switch (status) {
-      case 'FEASIBLE': return '#38ef7d';
-      case 'CAUTION': return '#ffb703';
-      case 'UNSAFE': return '#ff4b5c';
-      default: return '#8b9bb4';
-    }
-  };
-
-  const getStatusIcon = (status: 'FEASIBLE' | 'CAUTION' | 'UNSAFE') => {
-    switch (status) {
-      case 'FEASIBLE': return <ShieldCheck size={28} color="#38ef7d" />;
-      case 'CAUTION': return <AlertTriangle size={28} color="#ffb703" />;
-      case 'UNSAFE': return <AlertCircle size={28} color="#ff4b5c" />;
+  const getStatusBadge = () => {
+    switch (assessment.overallStatus) {
+      case 'FEASIBLE':
+        return (
+          <div className="status-badge safe" style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 14px', borderRadius: '20px', background: 'rgba(56, 239, 125, 0.15)', color: '#38ef7d', border: '1px solid rgba(56, 239, 125, 0.3)', fontWeight: 600 }}>
+            <ShieldCheck size={18} /> MISSION FEASIBLE
+          </div>
+        );
+      case 'CAUTION':
+        return (
+          <div className="status-badge warning" style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 14px', borderRadius: '20px', background: 'rgba(255, 183, 3, 0.15)', color: '#ffb703', border: '1px solid rgba(255, 183, 3, 0.3)', fontWeight: 600 }}>
+            <AlertTriangle size={18} /> CAUTION REQUIRED
+          </div>
+        );
+      case 'UNSAFE':
+        return (
+          <div className="status-badge danger" style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 14px', borderRadius: '20px', background: 'rgba(255, 75, 75, 0.15)', color: '#ff4b4b', border: '1px solid rgba(255, 75, 75, 0.3)', fontWeight: 600 }}>
+            <ShieldAlert size={18} /> UNSAFE MISSION
+          </div>
+        );
     }
   };
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <h2>
-            <Target size={20} color="#00f2fe" /> Expedition Mission Assessment
-          </h2>
-          <button className="btn-close" onClick={onClose}>
-            ✕
+    <div className="modal-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(10, 15, 30, 0.85)', backdropFilter: 'blur(8px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+      <div className="modal-content glass-card" style={{ width: '100%', maxWidth: '650px', maxHeight: '90vh', overflowY: 'auto', background: 'rgba(15, 23, 42, 0.95)', border: '1px solid rgba(0, 242, 254, 0.2)', borderRadius: '16px', padding: '24px', boxShadow: '0 20px 50px rgba(0, 0, 0, 0.5)' }}>
+        
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid rgba(255, 255, 255, 0.1)', paddingBottom: '16px' }}>
+          <div>
+            <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#f8fafc', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Compass style={{ color: '#00f2fe' }} /> Polar Expedition Safety Assessment
+            </h2>
+            <p style={{ fontSize: '0.8rem', color: '#94a3b8', margin: '4px 0 0 0' }}>
+              Dynamic AI Evaluation for {assessment.vesselName} ({assessment.polarClass})
+            </p>
+          </div>
+          <button 
+            onClick={onClose}
+            style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '4px' }}
+          >
+            <X size={20} />
           </button>
         </div>
 
-        <div className="modal-body">
-          {/* Top Status Banner */}
-          <div 
-            style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: '16px', 
-              padding: '20px', 
-              background: `rgba(${assessment.overallStatus === 'UNSAFE' ? '255, 75, 92' : assessment.overallStatus === 'CAUTION' ? '255, 183, 3' : '56, 239, 125'}, 0.1)`, 
-              border: `1px solid ${getStatusColor(assessment.overallStatus)}`, 
-              borderRadius: '10px',
-              marginBottom: '24px'
-            }}
-          >
-            {getStatusIcon(assessment.overallStatus)}
-            <div>
-              <div style={{ fontSize: '0.85rem', color: '#8b9bb4', textTransform: 'uppercase', letterSpacing: '1px' }}>
-                Overall Operational Status
-              </div>
-              <div style={{ fontSize: '1.4rem', fontWeight: 600, color: getStatusColor(assessment.overallStatus), marginTop: '4px' }}>
-                {assessment.overallStatus}
-              </div>
+        {/* Status Banner */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255, 255, 255, 0.03)', padding: '16px', borderRadius: '12px', marginBottom: '20px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+          <div>
+            <div style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Assessment Status</div>
+            <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#f8fafc', marginTop: '2px' }}>
+              {assessment.originName} → {assessment.destinationName}
             </div>
           </div>
-
-          <div className="grid-3" style={{ marginBottom: '24px' }}>
-            <div className="metric-box">
-              <div className="metric-title">Vessel Profile</div>
-              <div className="metric-num">{assessment.vesselName}</div>
-              <div className="metric-sub" style={{ color: '#00f2fe' }}>Class: {assessment.polarClass}</div>
-            </div>
-
-            <div className="metric-box">
-              <div className="metric-title">Voyage Trajectory</div>
-              <div className="metric-num">
-                {assessment.originName.split(' ')[0]} → {assessment.destinationName.split(' ')[0]}
-              </div>
-              <div className="metric-sub">{assessment.distanceNmi.toFixed(0)} Nmi | ETA: {(assessment.estimatedTimeHours/24).toFixed(1)} Days</div>
-            </div>
-
-            <div className="metric-box">
-              <div className="metric-title">Forecast Logistics</div>
-              <div className="metric-num" style={{ color: '#ffb703' }}>
-                {assessment.estimatedFuelTons} Tons MGO
-              </div>
-              <div className="metric-sub">Forecast Horizon: T+{assessment.forecastDay} Days</div>
-            </div>
-          </div>
-
-          {/* Environmental Hazards */}
-          <h4 style={{ color: '#00f2fe', marginBottom: '12px' }}>Environmental Hazard Telemetry</h4>
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Risk Vector</th>
-                <th>Measured Parameter</th>
-                <th>Safety Constraint</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td><strong>Sea-Ice Concentration (SIC)</strong></td>
-                <td>{assessment.minSicPct}% – {assessment.maxSicPct}% Coverage</td>
-                <td>
-                  <span className={`badge ${assessment.maxSicPct > 80 ? 'badge-red' : assessment.maxSicPct > 50 ? 'badge-amber' : 'badge-green'}`}>
-                    {assessment.maxSicPct > 80 ? 'HIGH SEVERITY' : assessment.maxSicPct > 50 ? 'MODERATE' : 'NOMINAL'}
-                  </span>
-                </td>
-              </tr>
-              <tr>
-                <td><strong>Iceberg Proximity</strong></td>
-                <td>{assessment.minIcebergClearanceNmi ? `${assessment.minIcebergClearanceNmi.toFixed(1)} Nmi Minimum Clearance` : 'No icebergs detected near route'}</td>
-                <td>
-                   <span className={`badge ${!assessment.minIcebergClearanceNmi || assessment.minIcebergClearanceNmi > 15 ? 'badge-green' : assessment.minIcebergClearanceNmi > 5 ? 'badge-amber' : 'badge-red'}`}>
-                     {!assessment.minIcebergClearanceNmi || assessment.minIcebergClearanceNmi > 15 ? 'SAFE MARGIN' : assessment.minIcebergClearanceNmi > 5 ? 'CAUTION' : 'DANGER'}
-                   </span>
-                </td>
-              </tr>
-              <tr>
-                <td><strong>Prediction Confidence</strong></td>
-                <td>{assessment.predictionConfidencePct}% AI Model Confidence</td>
-                <td>
-                   <span className={`badge ${assessment.predictionConfidencePct > 80 ? 'badge-green' : assessment.predictionConfidencePct > 60 ? 'badge-amber' : 'badge-red'}`}>
-                     {assessment.predictionConfidencePct > 80 ? 'HIGH' : assessment.predictionConfidencePct > 60 ? 'MARGINAL' : 'LOW'}
-                   </span>
-                </td>
-              </tr>
-              <tr>
-                <td><strong>Besetment Safety Index</strong></td>
-                <td>{assessment.safetyScoreTotal} / 100</td>
-                <td>
-                   <span className={`badge ${assessment.safetyScoreTotal > 80 ? 'badge-green' : assessment.safetyScoreTotal > 50 ? 'badge-amber' : 'badge-red'}`}>
-                     {assessment.safetyScoreTotal > 80 ? 'ACCEPTABLE' : assessment.safetyScoreTotal > 50 ? 'CAUTION' : 'CRITICAL'}
-                   </span>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-
-          {/* Active Warnings Log */}
-          <div
-            style={{
-              marginTop: '20px',
-              padding: '16px',
-              background: 'rgba(5, 11, 20, 0.7)',
-              border: '1px solid var(--border-glass)',
-              borderRadius: '10px',
-              fontSize: '0.85rem',
-              color: '#8b9bb4',
-              lineHeight: '1.6'
-            }}
-          >
-            <strong style={{ color: '#ffffff', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
-              <InfoIcon size={16} /> Operational Briefing Log:
-            </strong>
-            <ul style={{ margin: 0, paddingLeft: '20px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {assessment.activeWarnings.map((warning, idx) => (
-                <li key={idx} style={{ color: warning.includes('VIOLATION') || warning.includes('CRITICAL') || warning.includes('DANGER') ? '#ff4b5c' : warning.includes('ELEVATED') || warning.includes('WARNING') ? '#ffb703' : '#38ef7d' }}>
-                  {warning}
-                </li>
-              ))}
-            </ul>
-          </div>
-
+          {getStatusBadge()}
         </div>
+
+        {/* Key Metrics Grid */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '20px' }}>
+          <div style={{ background: 'rgba(0, 0, 0, 0.3)', padding: '12px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+            <div style={{ fontSize: '0.7rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px' }}><Compass size={12}/> Distance</div>
+            <div style={{ fontSize: '1rem', fontWeight: 700, color: '#00f2fe', marginTop: '4px' }}>{assessment.distanceNmi} <span style={{ fontSize: '0.7rem' }}>nmi</span></div>
+          </div>
+
+          <div style={{ background: 'rgba(0, 0, 0, 0.3)', padding: '12px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+            <div style={{ fontSize: '0.7rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px' }}><Clock size={12}/> Transit Time</div>
+            <div style={{ fontSize: '1rem', fontWeight: 700, color: '#f8fafc', marginTop: '4px' }}>{assessment.estimatedTimeHours} <span style={{ fontSize: '0.7rem' }}>hrs</span></div>
+          </div>
+
+          <div style={{ background: 'rgba(0, 0, 0, 0.3)', padding: '12px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+            <div style={{ fontSize: '0.7rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px' }}><Fuel size={12}/> Fuel Est.</div>
+            <div style={{ fontSize: '1rem', fontWeight: 700, color: '#f8fafc', marginTop: '4px' }}>{assessment.estimatedFuelTons} <span style={{ fontSize: '0.7rem' }}>tons</span></div>
+          </div>
+
+          <div style={{ background: 'rgba(0, 0, 0, 0.3)', padding: '12px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+            <div style={{ fontSize: '0.7rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px' }}><ShieldCheck size={12}/> Safety Index</div>
+            <div style={{ fontSize: '1rem', fontWeight: 700, color: assessment.safetyScoreTotal > 80 ? '#38ef7d' : '#ffb703', marginTop: '4px' }}>{assessment.safetyScoreTotal}/100</div>
+          </div>
+        </div>
+
+        {/* Warnings / Operational Notes */}
+        <div style={{ marginBottom: '20px' }}>
+          <h4 style={{ fontSize: '0.85rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '10px' }}>
+            Risk Warnings & Safety Diagnostics ({assessment.activeWarnings.length})
+          </h4>
+          {assessment.activeWarnings.length === 0 ? (
+            <div style={{ background: 'rgba(56, 239, 125, 0.05)', border: '1px solid rgba(56, 239, 125, 0.2)', padding: '12px', borderRadius: '8px', color: '#38ef7d', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <CheckCircle size={16} /> All safety criteria met. Safe clearance maintained from tracked hazards.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {assessment.activeWarnings.map((warn, idx) => (
+                <div key={idx} style={{ background: 'rgba(255, 75, 75, 0.08)', border: '1px solid rgba(255, 75, 75, 0.2)', padding: '10px 14px', borderRadius: '8px', color: '#ff4b4b', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <AlertTriangle size={14} style={{ flexShrink: 0 }} />
+                  <span>{warn}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Forecast Confidence */}
+        <div style={{ background: 'rgba(0, 0, 0, 0.2)', border: '1px solid rgba(255, 255, 255, 0.05)', padding: '14px', borderRadius: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <div style={{ fontSize: '0.8rem', color: '#cbd5e1', fontWeight: 600 }}>Trajectory Forecast Confidence</div>
+            <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '2px' }}>Day +{assessment.forecastDay} PINN Ocean Current Drift Model</div>
+          </div>
+          <div style={{ fontSize: '1.2rem', fontWeight: 700, color: assessment.predictionConfidencePct > 80 ? '#38ef7d' : '#ffb703' }}>
+            {assessment.predictionConfidencePct}%
+          </div>
+        </div>
+
       </div>
     </div>
   );

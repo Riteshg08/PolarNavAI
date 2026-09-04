@@ -70,13 +70,12 @@ export const IcebergTrackerPanel: React.FC<IcebergTrackerPanelProps> = ({
                     </td>
                     <td>
                       <span
-                        className={`badge ${
-                          ib.hazardLevel === 'CRITICAL'
+                        className={`badge ${ib.hazardLevel === 'CRITICAL'
                             ? 'badge-red'
                             : ib.hazardLevel === 'HIGH'
-                            ? 'badge-amber'
-                            : 'badge-cyan'
-                        }`}
+                              ? 'badge-amber'
+                              : 'badge-cyan'
+                          }`}
                       >
                         {ib.hazardLevel}
                       </span>
@@ -115,9 +114,9 @@ export const IcebergTrackerPanel: React.FC<IcebergTrackerPanelProps> = ({
                 <Radio size={16} /> Selected Focus: {selectedIceberg.name}
               </h4>
               <p style={{ fontSize: '0.82rem', color: '#f0f6fc', lineHeight: '1.5' }}>
-                Last observed timestamp: <strong>{selectedIceberg.lastObserved}</strong>. Hydrodynamic forces (ocean current drag vs wind shear) predict a general drift trajectory bearing of approximately <strong>{selectedIceberg.driftHeadingDeg}°</strong>. Recommended vessel clearance buffer: <strong>25 Nautical Miles (plus temporal uncertainty)</strong>.
+                Last observed timestamp: <strong>{selectedIceberg.lastObserved}</strong>. Hydrodynamic forces (ocean current drag vs wind shear) project drift trajectory bearing <strong>{selectedIceberg.driftHeadingDeg}°</strong>. Recommended vessel clearance buffer: <strong>25 Nautical Miles</strong>.
               </p>
-              
+
               <div style={{ marginTop: '12px', padding: '10px', background: 'rgba(0, 242, 254, 0.05)', borderRadius: '6px', borderLeft: '2px solid #00f2fe' }}>
                 <div style={{ fontSize: '0.75rem', color: '#8b9bb4', marginBottom: '4px' }}>
                   <strong>Drift Prediction Model Pipeline (PINN Stand-in)</strong>

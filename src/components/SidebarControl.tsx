@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { SeaIceForecastParams, StationLocation, VesselProfile } from '../types';
 import { STATIONS } from '../data/stations';
 import { VESSELS } from '../data/vessels';
-import { Navigation, Ship, Sliders, Calendar, Eye, Compass, Anchor, Activity, ChevronDown, ChevronRight, Loader2, Shield, Wind, Droplets } from 'lucide-react';
+import { Navigation, Ship, Sliders, Calendar, Eye, Compass, Anchor, Activity, ChevronDown, ChevronRight, Loader2, Shield, Wind, Droplets, Play, Pause } from 'lucide-react';
 import { getForecastGrid, getSicAt } from '../models/seaIceForecast';
 import { fetchSentinel1IceObservations } from '../data/adapters/sentinel1Adapter';
 import { fetchAMSR2IceGrid } from '../data/adapters/amsr2Adapter';
@@ -33,12 +33,33 @@ export const SidebarControl: React.FC<SidebarControlProps> = ({
   onRunOptimization
 }) => {
   const [isOptimizing, setIsOptimizing] = useState(false);
+  const [isAutoPlaying, setIsAutoPlaying] = useState(false);
+  const autoPlayRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [expandedSections, setExpandedSections] = useState({
     expedition: true,
     vessel: true,
     forecast: true,
     metrics: true
   });
+
+  // Autoplay: cycle forecast days 0→7 every 1.5s
+  const paramsRef = useRef(params);
+  paramsRef.current = params;
+
+  useEffect(() => {
+    if (isAutoPlaying) {
+      autoPlayRef.current = setInterval(() => {
+        const current = paramsRef.current;
+        const nextDay = current.forecastDay >= 7 ? 0 : current.forecastDay + 1;
+        onChangeParams({ ...current, forecastDay: nextDay });
+      }, 1500);
+    } else {
+      if (autoPlayRef.current) clearInterval(autoPlayRef.current);
+    }
+    return () => {
+      if (autoPlayRef.current) clearInterval(autoPlayRef.current);
+    };
+  }, [isAutoPlaying]);
 
   const toggleSection = (section: keyof typeof expandedSections) => {
     setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
@@ -230,8 +251,18 @@ export const SidebarControl: React.FC<SidebarControlProps> = ({
                   {params.forecastDay === 0 ? 'Now' : `+${params.forecastDay}d`}
                 </span>
               </div>
-              <div style={{ fontSize: '0.72rem', color: '#8b9bb4', marginTop: '12px' }}>
-                Simulating ice drift and satellite updates for Day +{params.forecastDay}.
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '10px' }}>
+                <button
+                  className="autoplay-btn"
+                  onClick={() => setIsAutoPlaying(prev => !prev)}
+                  title={isAutoPlaying ? 'Pause autoplay' : 'Play forecast animation'}
+                >
+                  {isAutoPlaying ? <Pause size={14} /> : <Play size={14} />}
+                  <span>{isAutoPlaying ? 'Pause' : 'Autoplay'}</span>
+                </button>
+                <span style={{ fontSize: '0.72rem', color: '#8b9bb4' }}>
+                  {isAutoPlaying ? `Playing Day +${params.forecastDay}...` : `Simulating Day +${params.forecastDay}`}
+                </span>
               </div>
             </>
           )}

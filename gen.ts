@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import { findOptimalRoute, WEIGHT_PRESETS } from './src/routing/optimizer';
-import { getDistanceNmi } from './src/utils/polarPhysics';
+import { getDistanceNmi, MIN_ICEBERG_CLEARANCE_NMI } from './src/utils/polarPhysics';
 import { ICEBERGS } from './src/data/icebergs';
 import { VESSELS } from './src/data/vessels';
 import { STATIONS } from './src/data/stations';
@@ -63,14 +63,14 @@ function processDay(pairId: string, origin: any, dest: any, day: number, vessel:
   const aiWaypoints = enrichWaypoints(aiWaypointsRaw);
   const directWaypoints = enrichWaypoints(directWaypointsRaw);
 
-  // Determine major hazard
+  // Determine major hazard (only if direct route VIOLATES clearance, and AI route RESPECTS it)
   let worstHazard = null;
   for (let i = 0; i < directWaypoints.length; i++) {
     const dwp = directWaypoints[i];
-    if (dwp.distanceToNearestIcebergNmi < 15) {
+    if (dwp.distanceToNearestIcebergNmi < MIN_ICEBERG_CLEARANCE_NMI) {
       // Find matching AI waypoint roughly at same progress
       const awp = aiWaypoints[i] || aiWaypoints[aiWaypoints.length - 1];
-      if (awp && awp.distanceToNearestIcebergNmi > dwp.distanceToNearestIcebergNmi) {
+      if (awp && awp.distanceToNearestIcebergNmi >= MIN_ICEBERG_CLEARANCE_NMI) {
         worstHazard = {
           icebergId: dwp.nearestIcebergId,
           distanceIfDirectNmi: dwp.distanceToNearestIcebergNmi,
@@ -81,15 +81,11 @@ function processDay(pairId: string, origin: any, dest: any, day: number, vessel:
     }
   }
 
-  if (!worstHazard && directWaypoints.length > 0) {
-    const mid = Math.floor(directWaypoints.length / 2);
-    const dwpMid = directWaypoints[mid];
-    const awpMid = aiWaypoints[mid] || aiWaypoints[0];
-    worstHazard = {
-      icebergId: dwpMid.nearestIcebergId,
-      distanceIfDirectNmi: dwpMid.distanceToNearestIcebergNmi,
-      distanceOnAIRouteNmi: awpMid ? awpMid.distanceToNearestIcebergNmi : dwpMid.distanceToNearestIcebergNmi
-    };
+  // Dev-time assertion to ensure we don't output meaningless comparisons
+  if (worstHazard) {
+    if (worstHazard.distanceOnAIRouteNmi - worstHazard.distanceIfDirectNmi < 5) {
+      throw new Error(`Meaningless clearance rationale generated for day ${day}: ${worstHazard.distanceIfDirectNmi} vs ${worstHazard.distanceOnAIRouteNmi}`);
+    }
   }
 
   const rationale = {

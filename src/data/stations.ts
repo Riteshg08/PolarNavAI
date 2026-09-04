@@ -1,4 +1,4 @@
-import { StationLocation } from '../../types';
+import { StationLocation } from '../types';
 
 // Station Presets
 export const STATIONS: StationLocation[] = [
